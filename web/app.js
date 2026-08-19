@@ -44,11 +44,11 @@ function spriteCanvas(rows,map){
 function hash(s){let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return h;}
 function framesFor(id,role,look){
   const h=hash(id);
-  const skin=SKINS[h%3], hair=HAIRS[(h>>2)%HAIRS.length];
-  const top=TOPS[(h>>4)%TOPS.length];
-  const head=look?.head||HEADS[(h>>7)%3];
+  const skin=SKINS[h%3], hair=HAIRS[(h>>>2)%HAIRS.length];
+  const top=TOPS[(h>>>4)%TOPS.length];
+  const head=look?.head||HEADS[(h>>>7)%3];
   const map={O:PAL.outline,e:PAL.ink,W:'#FFFFFF',H:hair[0],h:hair[1],S:skin.S,s:skin.s,
-    T:top[0],t:top[1],P:(h>>3)%2?PAL.steel:'#5C6B8C',E:'#2C2635'};
+    T:top[0],t:top[1],P:(h>>>3)%2?PAL.steel:'#5C6B8C',E:'#2C2635'};
   const headRows={short:HEAD_SHORT,bob:HEAD_BOB,long:HEAD_LONG}[head];
   const spill=head==='long';
   const compose=body=>spriteCanvas(headRows.concat(body.map((r,i)=>{
@@ -541,7 +541,12 @@ async function showLauncher(){
   const cards=document.getElementById('companyCards');
   cards.innerHTML='';
   for(const n of names){
-    const info=await (await fetch('/api/company/'+encodeURIComponent(n))).json();
+    let info;
+    try{
+      const r=await fetch('/api/company/'+encodeURIComponent(n));
+      info=await r.json();
+      if(!r.ok||!Array.isArray(info.employees))throw new Error(info.error||r.status);
+    }catch{continue;} // corrupted/unreadable company — skip so the rest of the launcher still works
     const card=document.createElement('button');
     card.className='card';
     card.title='Open the '+n+' office';
@@ -817,7 +822,11 @@ function connectWS(){
   ws.onopen=()=>{if(wsWasConnected)loadState();wsWasConnected=true;};
   ws.onmessage=ev=>{
     const m=JSON.parse(ev.data);
-    if(m.company&&m.company!==companyName)return;  // events from other companies
+    // Compare canonical on-disk names (server sanitizes to [a-z0-9-_]): the launcher
+    // lists folder names while orchestrator events carry the display name from
+    // company.json, so unicode names would otherwise never match and chat goes dead.
+    const coKey=n=>String(n).replace(/[^a-z0-9-_]/gi,'_');
+    if(m.company&&(!companyName||coKey(m.company)!==coKey(companyName)))return;  // events from other companies
     if(m.type==='chat'){
       if(m.from==='boss')say('boss',m.text);
       else say(m.from,m.text,4200);

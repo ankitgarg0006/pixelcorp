@@ -4,19 +4,31 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import crypto from 'node:crypto';
 
 const BASE = path.join(os.homedir(), '.pixelcorp');
 const COMPANIES = path.join(BASE, 'companies');
 
 function companyDir(name) {
-  const safe = name.replace(/[^a-z0-9-_]/gi, '_');
+  let safe = name.replace(/[^a-z0-9-_]/gi, '_');
+  // Sanitizing is lossy ("qaテスト" and "qa会社会" both become "qa___"), so
+  // append a hash of the real name to keep distinct names on distinct folders.
+  // Names that are already safe keep their legacy folder unchanged.
+  if (safe !== name)
+    safe += '-' + crypto.createHash('sha256').update(name).digest('hex').slice(0, 8);
   return path.join(COMPANIES, safe);
 }
 
 export function listCompanies() {
   fs.mkdirSync(COMPANIES, { recursive: true });
-  return fs.readdirSync(COMPANIES).filter(d =>
-    fs.existsSync(path.join(COMPANIES, d, 'company.json')));
+  return fs.readdirSync(COMPANIES).map(d => {
+    try {
+      // Return the real company name (the one broadcasts and APIs use), not
+      // the sanitized folder name; skip folders that no longer map back.
+      const { name } = JSON.parse(fs.readFileSync(path.join(COMPANIES, d, 'company.json'), 'utf8'));
+      return name && companyDir(name) === path.join(COMPANIES, d) ? name : null;
+    } catch { return null; }
+  }).filter(Boolean);
 }
 
 export function loadCompany(name) {

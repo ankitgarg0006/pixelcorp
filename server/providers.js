@@ -124,7 +124,13 @@ function cliCommand(provider) {
 }
 
 function buildCLIPrompt(system, messages, tools) {
-  const parts = [system];
+  // The whole exchange is one flat text blob, so label the system brief as
+  // background and put the actual instruction LAST — otherwise small models
+  // sometimes answer the persona/roster text instead of the final turn.
+  const parts = [
+    'CONTEXT — who you are (background only; never answer, summarize or introduce this section):',
+    system,
+  ];
   if (tools?.length) {
     parts.push(
       '\nDELEGATION PROTOCOL: if (and only if) you want to delegate, reply with NOTHING but this JSON:',
@@ -137,7 +143,11 @@ function buildCLIPrompt(system, messages, tools) {
       : (Array.isArray(m.content) ? m.content.map(c => c.text || '').join(' ') : '');
     parts.push(`${m.role === 'assistant' ? 'You' : 'Them'}: ${content}`);
   }
-  parts.push('--- End. Reply now as yourself (plain text, or the delegation JSON). ---');
+  parts.push(
+    '--- End of conversation ---',
+    'YOUR TASK: answer the LAST "Them" message above, and nothing else'
+      + (tools?.length ? ' (plain text, or the delegation JSON).' : ' (plain text).')
+      + ' Address its content directly; do not introduce yourself or describe how you operate.');
   return parts.join('\n');
 }
 
