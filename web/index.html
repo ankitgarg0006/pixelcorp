@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>pixelcorp</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
+</head>
+<body>
+<div class="app">
+  <!-- launcher: pick a company, nothing auto-opens -->
+  <section id="launcher">
+    <header class="topbar">
+      <div class="logo">PIXEL<b>·</b>CORP</div>
+    </header>
+    <h2 class="lh">Your companies</h2>
+    <p class="lsub">Each company is its own isolated office — roster, transcript and settings live in
+      <code>~/.pixelcorp/companies/&lt;name&gt;</code>. Delete a folder there to remove one for good.</p>
+    <div class="cards" id="companyCards"></div>
+  </section>
+
+  <div id="officeApp" hidden>
+  <header class="topbar">
+    <div class="logo">PIXEL<b>·</b>CORP</div>
+    <button class="btn" id="backBtn" title="Back to the company launcher">← Companies</button>
+    <select class="companySel" id="companySel" title="Quick-switch to another company"></select>
+    <span class="spacer"></span>
+    <button class="btn primary" id="hireBtn" title="Hire a new employee: name, role, persona, engine, manager and charter">🎉 Hire</button>
+  </header>
+  <div class="approvals" id="approvals"></div>
+
+  <main class="main">
+    <section class="left">
+      <div class="stage" id="stage"><canvas id="cv" width="512" height="288"></canvas></div>
+      <div class="hudbox feed-box">
+        <h4>Activity</h4>
+        <div class="log" id="feed"></div>
+      </div>
+    </section>
+
+    <aside class="right">
+      <div class="hudbox">
+        <h4>Roster — click to chat</h4>
+        <div class="roster" id="roster"></div>
+      </div>
+      <div class="chatbox" id="chatbox" hidden>
+        <div class="chathead">
+          <span class="title" id="chatTitle"></span>
+          <span class="spacer"></span>
+          <button class="btn" id="settingsBtn"
+            title="Edit this employee's settings: role, persona, manager, engine and model">⚙ Settings</button>
+          <button class="btn" id="charterBtn"
+            title="Edit this employee's charter: which repos they may access and what they may do there">📂 Charter</button>
+          <button class="btn danger" id="fireBtn"
+            title="Let this employee go: they are removed from the roster and office. Their past messages stay in the company transcript. Click twice to confirm.">Fire 📦</button>
+        </div>
+        <div class="workstatus" id="workStatus" hidden
+          title="Live work log — what this employee is doing right now"></div>
+        <div class="msgs" id="msgs"></div>
+        <form class="composer" id="composer">
+          <input id="msgInput" placeholder="Message… (tasks are just messages)" autocomplete="off">
+          <button class="btn primary" type="submit"
+            title="Send — tasks are just messages; managers may ask your approval to delegate">Send</button>
+        </form>
+      </div>
+      <div class="hudbox hint" id="hint">
+        <b>Move with the arrow keys</b> — walk up to an employee and press
+        <b>Enter</b> to talk, or just click them in the office or roster.<br><br>
+        Talk to the <b>CEO or CTO</b> and watch them delegate to the team — or message an
+        engineer directly.<br><br>
+        <b>No API key needed</b> if you're signed into Claude Code (<code>claude</code> CLI) or
+        Copilot CLI — employees on those engines bill your subscription. API-key
+        (<code>ANTHROPIC_API_KEY</code>/<code>OPENAI_API_KEY</code>) and free local Ollama
+        engines also work, mix per employee.
+      </div>
+    </aside>
+  </main>
+  </div><!-- /officeApp -->
+</div>
+
+<!-- hire modal -->
+<div class="modal" id="hireModal">
+  <div class="modal-box">
+    <h3>🎉 Hire an employee</h3>
+    <label>Name</label><input id="hName" placeholder="Zoya">
+    <label>Role</label><input id="hRole" placeholder="Designer">
+    <label>Persona (system prompt)</label>
+    <textarea id="hPersona" placeholder="You are a sharp product designer…"></textarea>
+    <label>Reports to</label>
+    <select id="hManager" title="Their manager — managers can delegate work down to their reports"></select>
+    <label>Engine</label>
+    <select id="hProvider" title="Which AI runs this employee. CLI engines use your existing sign-in — no API key.">
+      <option value="claude-cli">Claude Code sign-in · no API key (subscription)</option>
+      <option value="copilot-cli">Copilot CLI sign-in · no API key</option>
+      <option value="anthropic">Anthropic API · claude-sonnet-5 (ANTHROPIC_API_KEY)</option>
+      <option value="openai">OpenAI API · gpt (OPENAI_API_KEY)</option>
+      <option value="ollama">Ollama · local &amp; free (llama3.2)</option>
+    </select>
+    <label>Model</label>
+    <select id="hModel" title="Models available to you on the chosen engine — fetched live. Pick “custom…” to type any model id."></select>
+    <input id="hModelCustom" placeholder="custom model id, e.g. claude-sonnet-4.5" hidden style="margin-top:6px">
+    <label>Charter — repos they own (comma-separated paths)</label>
+    <input id="hRepos" placeholder="~/Desktop/Personal Work/agapps/hisaab"
+      title="On the Claude Code engine, these become the ONLY directories this employee can access. Leave empty for a chat-only employee with no file access.">
+    <label>File permissions</label>
+    <select id="hPerms" title="What they may do inside their charter repos (Claude Code engine)">
+      <option value="read">Read only — browse &amp; report</option>
+      <option value="read,write">Read + write — edit files</option>
+      <option value="read,write,run">Read + write + run commands</option>
+    </select>
+    <div class="row">
+      <button class="btn" id="hCancel">Cancel</button>
+      <button class="btn primary" id="hSubmit"
+        title="Hire them — they join the roster and take a desk immediately">Sign the offer 🖊️</button>
+    </div>
+  </div>
+</div>
+
+<!-- employee settings modal -->
+<div class="modal" id="settingsModal">
+  <div class="modal-box">
+    <h3>⚙ Employee settings</h3>
+    <p class="sub" id="settingsWho"></p>
+    <label>Role</label><input id="sRole">
+    <label>Persona (system prompt)</label><textarea id="sPersona"></textarea>
+    <label>Reports to</label><select id="sManager"></select>
+    <label>Engine</label>
+    <select id="sProvider">
+      <option value="claude-cli">Claude Code sign-in · no API key (subscription)</option>
+      <option value="copilot-cli">Copilot CLI sign-in · no API key</option>
+      <option value="anthropic">Anthropic API (ANTHROPIC_API_KEY)</option>
+      <option value="openai">OpenAI-compatible API (OPENAI_API_KEY / baseURL)</option>
+      <option value="ollama">Ollama · local &amp; free</option>
+    </select>
+    <label>Model</label>
+    <select id="sModel" title="Models available on the chosen engine. Pick “custom…” to type any model id."></select>
+    <input id="sModelCustom" placeholder="custom model id, e.g. claude-sonnet-4.5" hidden style="margin-top:6px">
+    <div class="row">
+      <button class="btn" id="sCancel">Cancel</button>
+      <button class="btn primary" id="sSave" title="Save — takes effect on their next message">Save settings</button>
+    </div>
+  </div>
+</div>
+
+<!-- charter modal -->
+<div class="modal" id="charterModal">
+  <div class="modal-box">
+    <h3>📂 Edit charter</h3>
+    <p class="sub" id="charterWho"></p>
+    <label>Repos they own (comma-separated paths)</label>
+    <input id="chRepos" placeholder="~/Desktop/Personal Work/agapps/hisaab"
+      title="These become the ONLY directories this employee can access on the Claude Code engine">
+    <label>File permissions</label>
+    <select id="chPerms">
+      <option value="read">Read only — browse &amp; report</option>
+      <option value="read,write">Read + write — edit files</option>
+      <option value="read,write,run">Read + write + run commands</option>
+    </select>
+    <div class="row">
+      <button class="btn" id="chCancel">Cancel</button>
+      <button class="btn primary" id="chSave" title="Save — takes effect on their next message">Save charter</button>
+    </div>
+  </div>
+</div>
+
+<!-- new company modal -->
+<div class="modal" id="companyModal">
+  <div class="modal-box">
+    <h3>＋ Found a new company</h3>
+    <label>Company name</label><input id="cName" placeholder="my-startup">
+    <p class="hint" id="cErr" style="margin-top:8px;color:#E36868"></p>
+    <p class="hint" style="margin-top:4px">A fresh empty office — you'll hire the first
+      employee next (a CEO makes a good start).</p>
+    <div class="row">
+      <button class="btn" id="cCancel">Cancel</button>
+      <button class="btn primary" id="cSubmit">Found it 🏢</button>
+    </div>
+  </div>
+</div>
+
+<script src="/vendor/marked.js"></script>
+<script src="/vendor/purify.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
