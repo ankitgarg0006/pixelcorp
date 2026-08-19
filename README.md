@@ -11,6 +11,12 @@
 
 <h3 align="center">Hire AI agents as employees. Give them repos. Watch your org chart work.</h3>
 
+<p align="center">
+  <img src="assets/demo.gif" alt="Walking the office, messaging the CTO, and approving a delegation" width="820">
+</p>
+<p align="center"><sub>Live demo: entering the office, walking with arrow keys, tasking the CTO, and the
+delegation approval card. <a href="assets/screenshot.png">Full-res screenshot →</a></sub></p>
+
 ---
 
 **pixelcorp** turns a team of LLM agents into a tiny company you run from a

@@ -441,8 +441,8 @@ function moveBoss(dt){
     if(!bossBlocked(boss.x,ny))boss.y=ny;
   }
   boss.pose=moving?'walk':'stand';
-  // proximity: nearest employee within reach
-  let best=null,bd=30;
+  // proximity: nearest employee within reach (generous enough to work across a desk)
+  let best=null,bd=48;
   employees.forEach(e=>{
     const d=Math.hypot(e.x-boss.x,e.y-boss.y);
     if(d<bd){bd=d;best=e.id;}
