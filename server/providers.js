@@ -40,6 +40,24 @@ export async function detectCLI(tool) {
     signinCmd: bin === 'copilot' ? 'copilot' : 'claude' };
 }
 
+// MCP servers already configured in the CLI itself (`claude mcp add` etc.).
+// These are inherited by every employee on that engine (we pass --mcp-config
+// additively, without --strict-mcp-config), so the UI shows them per employee.
+export async function listCliMcp(tool) {
+  const bin = tool === 'copilot' ? 'copilot' : 'claude';
+  try {
+    const { stdout } = await pexec(bin, ['mcp', 'list'], { timeout: 9000 });
+    const servers = [];
+    for (const line of (stdout || '').split('\n')) {
+      const m = line.match(/^([A-Za-z0-9_.\-]+):\s+(.*)$/);
+      if (!m) continue;                         // skips health-check / "No servers" lines
+      const desc = m[2].replace(/\s+-\s+[✓✗●✔✘].*$/u, '').trim();
+      servers.push({ name: m[1], desc });
+    }
+    return { tool: bin, servers };
+  } catch (e) { return { tool: bin, servers: [], error: e.message }; }
+}
+
 function keyFor(provider) {
   if (provider.apiKeyEnv) return process.env[provider.apiKeyEnv] || '';
   if (provider.type === 'anthropic') return process.env.ANTHROPIC_API_KEY || '';

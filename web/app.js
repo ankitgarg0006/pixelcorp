@@ -739,34 +739,59 @@ async function selectEmployee(id){
   if(!e)return;
   chatbox.hidden=false;hint.hidden=true;
   document.getElementById('chatTitle').textContent='Chat with '+e.name+' · '+e.role;
-  renderRoster();
+  renderRoster();railClear();
   msgs.innerHTML='';
   const hist=await (await fetch('/api/company/'+encodeURIComponent(companyName)+'/history?with='+id)).json();
   hist.forEach(addMsgToPanel);
   msgs.scrollTop=msgs.scrollHeight;
   updateWorkStatus();
 }
+// A small hover-reveal copy button; getText() returns the raw text to copy.
+function copyBtn(getText,cls){
+  const b=document.createElement('button');
+  b.type='button';b.className='copybtn'+(cls?' '+cls:'');b.title='Copy';b.textContent='⧉';
+  b.addEventListener('click',e=>{
+    e.stopPropagation();
+    const t=getText();
+    if(navigator.clipboard)navigator.clipboard.writeText(t).catch(()=>{});
+    b.classList.add('done');b.textContent='✓';
+    setTimeout(()=>{b.classList.remove('done');b.textContent='⧉';},1200);
+  });
+  return b;
+}
 function addMsgToPanel(m){
   if(!(m.from===selected||m.to===selected))return;
+  // tool calls / delegations are transient (work rail) — never chat bubbles,
+  // including any left over in old transcripts
+  if(m.kind==='delegation'||m.kind==='delegation-result')return;
   const d=document.createElement('div');
-  if(m.kind==='delegation'||m.kind==='delegation-result'){
-    d.className='msg sys';d.textContent='— '+(m.fromName||m.from)+' '+m.text+' —';
-  }else{
+  {
     d.className='msg '+(m.from==='boss'?'me':'them');
+    d.dataset.raw=m.text;
     d.innerHTML='<div class="who">'+esc(m.fromName||m.from)+'</div>'+renderMD(m.text);
+    d.appendChild(copyBtn(()=>d.dataset.raw||'','msgcopy'));   // copy whole message
+    d.querySelectorAll('pre').forEach(pre=>{                    // copy each code block
+      pre.appendChild(copyBtn(()=>pre.querySelector('code')?pre.querySelector('code').innerText:pre.innerText,'codecopy'));
+    });
   }
   msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;
 }
-document.getElementById('composer').addEventListener('submit',ev=>{
-  ev.preventDefault();
-  const input=document.getElementById('msgInput');
-  const text=input.value.trim();
+const msgInput=document.getElementById('msgInput');
+function autoGrow(){msgInput.style.height='auto';msgInput.style.height=Math.min(msgInput.scrollHeight,132)+'px';}
+msgInput.addEventListener('input',autoGrow);
+function sendMessage(){
+  const text=msgInput.value.trim();
   if(!text||!selected)return;
-  input.value='';
+  msgInput.value='';autoGrow();
   fetch('/api/company/'+encodeURIComponent(companyName)+'/message',{
     method:'POST',headers:{'content-type':'application/json'},
     body:JSON.stringify({to:selected,text}),
   });
+}
+document.getElementById('composer').addEventListener('submit',ev=>{ev.preventDefault();sendMessage();});
+// Enter sends; Shift+Enter inserts a newline (multi-line paste stays intact).
+msgInput.addEventListener('keydown',ev=>{
+  if(ev.key==='Enter'&&!ev.shiftKey){ev.preventDefault();sendMessage();}
 });
 // ---- employee settings editor ----
 const settingsModal=document.getElementById('settingsModal');
@@ -1022,6 +1047,28 @@ function renderMcp(){
   const add=document.createElement('button');add.type='button';add.className='mcpadd';
   add.textContent='＋ Add MCP server';add.disabled=!isCli;add.addEventListener('click',addMcp);
   box.appendChild(add);
+  if(isCli)renderCliMcp(box,CLI_TOOL[eng]);   // + inherited-from-CLI servers
+}
+// Show MCP servers already configured in the CLI (claude mcp add …) — inherited
+// by every employee on that engine, so listed here per employee (read-only).
+let cliMcpCache={};
+function renderCliMcp(box,tool){
+  const draw=(data)=>{
+    if(!data||!data.servers||!data.servers.length)return;
+    const hd=document.createElement('div');hd.className='mcp-sub';
+    hd.textContent='From your '+tool+' CLI · available to every employee';
+    box.appendChild(hd);
+    data.servers.forEach(s=>{
+      const row=document.createElement('div');row.className='mcprow inherited';
+      row.innerHTML='<span class="nm">'+esc(s.name)+'</span><span class="cm">'+esc(s.desc||'')+'</span>'
+        +'<span class="tagpill">CLI</span>';
+      box.appendChild(row);
+    });
+  };
+  if(cliMcpCache[tool]){draw(cliMcpCache[tool]);return;}
+  fetch('/api/mcp?tool='+tool).then(r=>r.json()).then(d=>{cliMcpCache[tool]=d;
+    if(document.getElementById('sProvider')&&CLI_TOOL[document.getElementById('sProvider').value]===tool)draw(d);
+  }).catch(()=>{});
 }
 function addMcp(){
   const name=prompt('MCP server name (e.g. github, playwright):');if(!name||!name.trim())return;
@@ -1093,8 +1140,13 @@ function connectWS(){
     if(m.type==='chat'){
       if(m.from==='boss')say('boss',m.text);
       else say(m.from,m.text,4200);
-      logLine((m.fromName||m.from)+' →',m.kind==='delegation'?m.text:(m.to==='boss'?'replied':'to '+m.to));
+      logLine((m.fromName||m.from)+' →',m.to==='boss'?'replied':'to '+m.to);
+      if(m.from===selected&&m.to==='boss')railClear();   // final answer → drop the transient logs
       addMsgToPanel(m);
+    }
+    if(m.type==='worklog'){                                // ephemeral tool call / delegation
+      logLine('delegation',(m.fromName||m.from)+' '+(m.kind==='delegation-result'?'replied':'→ '+m.to));
+      if(m.from===selected||m.to===selected)railWork(m);
     }
     if(m.type==='delegate'){
       logLine('delegation',m.from+' → '+m.to+': '+m.task);
@@ -1105,12 +1157,13 @@ function connectWS(){
       if(e&&!e.busy){e.busy=true;syncOverlays();}
       say(m.id,'⚙ '+m.text,2600);
       renderRoster();updateWorkStatus();
-      if(m.id===selected)appendWorkLine(m.text);
+      if(m.id===selected)railLine('↳ '+m.text);
     }
     if(m.type==='status'){
       const e=employees.find(x=>x.id===m.id);
       if(m.status!=='working')delete progressText[m.id];
       if(e){e.busy=m.status==='working';assignSeatsKeep();renderRoster();syncOverlays();}
+      if(m.id===selected&&m.status!=='working')railClear();
       updateWorkStatus();
     }
     if(m.type==='approval')showApproval(m);
@@ -1136,11 +1189,28 @@ function updateWorkStatus(){
   if(e&&e.busy){el.hidden=false;el.textContent=progressText[selected]||'working…';}
   else el.hidden=true;
 }
-function appendWorkLine(text){
-  const d=document.createElement('div');
-  d.className='msg work';d.textContent='⚙ '+text;
-  msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;
+// ---- transient work rail: streams tool calls / delegations, cleared on reply ----
+function railClear(){
+  const r=document.getElementById('workrail');if(!r)return;
+  r.hidden=true;document.getElementById('wrLog').innerHTML='';
 }
+function railLine(text,cls){
+  const r=document.getElementById('workrail');if(!r)return;
+  r.hidden=false;
+  const e=selected?employees.find(x=>x.id===selected):null;
+  document.getElementById('wrHead').textContent=(e?e.name:'Working')+' is working…';
+  const log=document.getElementById('wrLog');
+  [...log.children].forEach(c=>c.classList.remove('now'));
+  const d=document.createElement('div');d.className='l now'+(cls?' '+cls:'');d.textContent=text;
+  log.appendChild(d);log.scrollTop=log.scrollHeight;
+}
+function railWork(m){
+  if(m.kind==='delegation-result')railLine('↳ '+(m.fromName||m.from)+' replied ✓','ok');
+  else if(/^✕/.test(m.text||''))railLine('↳ '+m.text,'no');
+  else railLine('↳ delegate → '+(displayName(m.to)||m.to)+' · "'+excerpt(m.text)+'"','ok');
+}
+function displayName(id){const e=employees.find(x=>x.id===id);return e?e.name:id;}
+function excerpt(t){t=String(t||'').replace(/^→\s*[^:]+:\s*/,'');return t.length>48?t.slice(0,48)+'…':t;}
 
 // ---- delegation approvals ----
 function showApproval(m){

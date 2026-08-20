@@ -7,7 +7,16 @@
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
-.app{max-width:1400px;margin:0 auto;padding:16px 18px 40px}
+.app{max-width:1560px;margin:0 auto;padding:16px 18px 20px}
+/* office view fills the screen height (desktop only — mobile stays natural flow) */
+#officeApp{display:flex;flex-direction:column}
+@media (min-width:1001px){
+  #officeApp{height:calc(100dvh - 36px)}
+  .main{overflow:hidden;grid-template-rows:minmax(0,1fr)}
+  .left,.right{min-height:0}
+  .stage{max-height:58vh;display:flex;justify-content:center}
+  .stage canvas{max-width:100%;max-height:58vh;width:auto;height:auto;margin:0 auto}
+}
 .spacer{flex:1}
 
 .topbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
@@ -65,9 +74,12 @@ body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe
 .btn.danger:hover{border-color:#E36868;color:#E36868}
 .btn:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 
-.main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px}
-@media (max-width:1000px){.main{grid-template-columns:1fr}}
-.left{min-width:0}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:14px;flex:1;min-height:0}
+@media (max-width:1000px){.main{grid-template-columns:1fr;min-height:0}}
+.left{min-width:0;display:flex;flex-direction:column}
+.right{display:flex;flex-direction:column;min-height:0}
+.feed-box{flex:1;min-height:120px;display:flex;flex-direction:column}
+.feed-box .log{max-height:none;flex:1}
 
 .stage{position:relative;border-radius:10px;overflow:hidden;line-height:0;
   border:1px solid var(--line);box-shadow:0 20px 50px rgba(0,0,0,.4)}
@@ -114,13 +126,24 @@ body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe
 .roster .rl.busy{color:var(--warn)}
 
 .chatbox{background:var(--hud);border:1px solid var(--line);border-radius:8px;margin-top:12px;
-  display:flex;flex-direction:column;min-height:360px;max-height:520px}
+  display:flex;flex-direction:column;min-height:340px;flex:1}
 .chathead{padding:11px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;
   align-items:center;flex-wrap:wrap;row-gap:8px}
 .chathead .title{font-weight:700;font-size:13.5px;flex:1 1 100%;min-width:0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .msgs{padding:14px;display:flex;flex-direction:column;gap:10px;flex:1;overflow-y:auto}
-.msg{max-width:82%;padding:8px 11px;border-radius:8px;font-size:13px;line-height:1.45}
+.msg{max-width:82%;padding:8px 11px;border-radius:8px;font-size:13px;line-height:1.45;position:relative}
+/* hover-reveal copy buttons on messages and code blocks */
+.copybtn{position:absolute;top:5px;right:5px;width:23px;height:23px;border:0;border-radius:6px;
+  background:rgba(20,15,36,.5);color:#EFEAF7;font-size:12px;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .12s,background .12s}
+.msg:hover .copybtn.msgcopy{opacity:.8}
+.copybtn:hover{opacity:1;background:var(--accent);color:#1D1830}
+.copybtn.done{opacity:1;background:var(--good);color:#0E2A1E}
+.msg.me .copybtn.msgcopy{background:rgba(0,0,0,.16);color:#1D1830}
+.msg .md pre{position:relative}
+.copybtn.codecopy{top:4px;right:4px;width:22px;height:22px;background:rgba(20,15,36,.72)}
+.msg:hover .copybtn.codecopy{opacity:.72}
 /* markdown inside messages */
 .msg .md .mdgap{height:8px}
 .msg .md h4,.msg .md h5,.msg .md h6{margin:8px 0 4px;font-size:13.5px;font-weight:800}
@@ -140,10 +163,25 @@ body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe
 .msg.me{background:var(--accent);color:#1D1830;align-self:flex-end}
 .msg.sys{align-self:center;background:none;color:var(--muted);
   font-family:ui-monospace,Menlo,monospace;font-size:10.5px;max-width:100%}
-.composer{margin:0 12px 12px;display:flex;gap:8px}
-.composer input{flex:1;background:#1E1930;border:1px solid var(--line);border-radius:4px;
+/* transient work rail — tool calls / delegations while an employee works */
+.workrail{margin:2px 14px 0;border-top:1px dashed var(--line);padding:8px 2px 2px}
+.wr-head{display:flex;align-items:center;gap:7px;font-family:ui-monospace,Menlo,monospace;
+  font-size:10.5px;letter-spacing:.5px;color:var(--warn);margin-bottom:6px}
+.wr-head::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--warn);
+  animation:pulse 1.1s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.wr-head::before{animation:none}}
+.wr-log{display:flex;flex-direction:column;gap:3px;max-height:112px;overflow-y:auto;
+  font-family:ui-monospace,Menlo,monospace;font-size:10.5px;line-height:1.5;color:#B8AED0}
+.wr-log .l{opacity:.55}
+.wr-log .l.now{opacity:1;color:#EFEAF7}
+.wr-log .l.ok{color:#8FE0AC}
+.wr-log .l.no{color:#E9A6A6}
+.composer{margin:0 12px 12px;display:flex;gap:8px;align-items:flex-end}
+.composer input,.composer textarea{flex:1;background:#1E1930;border:1px solid var(--line);border-radius:6px;
   color:#EFEAF7;font:inherit;font-size:13px;padding:9px 11px}
-.composer input::placeholder{color:#6E6590}
+.composer textarea{resize:none;line-height:1.4;max-height:132px;overflow-y:auto}
+.composer input::placeholder,.composer textarea::placeholder{color:#6E6590}
+.composer .btn.primary{align-self:flex-end}
 
 .modal{position:fixed;inset:0;background:rgba(16,12,28,.7);display:none;
   align-items:center;justify-content:center;z-index:50;padding:20px}
@@ -215,3 +253,9 @@ body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe
   padding:8px;cursor:pointer;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;width:100%}
 .mcpadd:hover{border-color:var(--accent);color:var(--accent)}
 .mcp-empty{font-size:11.5px;color:var(--muted);padding:2px 2px 4px}
+.mcp-sub{font-family:ui-monospace,Menlo,monospace;font-size:9.5px;letter-spacing:.5px;
+  text-transform:uppercase;color:var(--muted);margin:10px 2px 2px}
+.mcprow.inherited{opacity:.9;background:#181228}
+.mcprow.inherited .tagpill{margin-left:auto;font-family:ui-monospace,Menlo,monospace;font-size:9px;
+  letter-spacing:.5px;color:#8FD8EF;border:1px solid #34506b;background:rgba(80,150,200,.12);
+  border-radius:4px;padding:1px 6px;flex:none}

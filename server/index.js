@@ -7,7 +7,7 @@ import {
   listCompanies, loadCompany, saveCompany, readMessages, ensureDemoCompany,
 } from './store.js';
 import { makeOrchestrator } from './orchestrator.js';
-import { detectCLI } from './providers.js';
+import { detectCLI, listCliMcp } from './providers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEB = path.join(__dirname, '..', 'web');
@@ -44,6 +44,12 @@ export function startServer(port = 4310) {
       if (url.pathname === '/api/cli' && req.method === 'GET') {
         const tool = url.searchParams.get('tool') || 'claude';
         return send(200, await detectCLI(tool));
+      }
+
+      // MCP servers already configured in the CLI (inherited by every employee)
+      if (url.pathname === '/api/mcp' && req.method === 'GET') {
+        const tool = url.searchParams.get('tool') || 'claude';
+        return send(200, await listCliMcp(tool));
       }
 
       // list models the user can actually use for a given engine

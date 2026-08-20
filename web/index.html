@@ -58,8 +58,13 @@
         <div class="workstatus" id="workStatus" hidden
           title="Live work log — what this employee is doing right now"></div>
         <div class="msgs" id="msgs"></div>
+        <div class="workrail" id="workrail" hidden>
+          <div class="wr-head" id="wrHead">working…</div>
+          <div class="wr-log" id="wrLog"></div>
+        </div>
         <form class="composer" id="composer">
-          <input id="msgInput" placeholder="Message… (tasks are just messages)" autocomplete="off">
+          <textarea id="msgInput" rows="1" autocomplete="off"
+            placeholder="Message… (Enter to send, Shift+Enter for a new line)"></textarea>
           <button class="btn primary" type="submit"
             title="Send — tasks are just messages; managers may ask your approval to delegate">Send</button>
         </form>

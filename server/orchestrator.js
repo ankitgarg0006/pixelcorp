@@ -99,6 +99,11 @@ export function makeOrchestrator(company, broadcast) {
   function progress(empId, text) {
     broadcast({ type: 'progress', company: company().name, id: empId, text, at: new Date().toISOString() });
   }
+  // ephemeral tool-call / delegation event — shown transiently in the chat's work
+  // rail, NOT written to the transcript (only real chat messages are persisted)
+  function worklog(msg) {
+    broadcast({ type: 'worklog', company: company().name, ...msg, at: new Date().toISOString() });
+  }
 
   // Run one employee's agent turn on an incoming message. Returns reply text.
   // Turns for the same employee are queued so they never interleave.
@@ -134,7 +139,9 @@ export function makeOrchestrator(company, broadcast) {
       // Snapshot history BEFORE recording the incoming message, so the model
       // does not see the same prompt twice (once in history, once appended).
       let messages = [...historyFor(empId), { role: 'user', content: `${fromName}: ${text}` }];
-      if (incoming) record(incoming);
+      // Persist only real chat (the Boss's message); a delegated sub-task is a
+      // tool call — surface it transiently, don't write it to the transcript.
+      if (incoming) { if (incoming.kind === 'chat') record(incoming); else worklog(incoming); }
       const system = systemPrompt(emp, canDelegate);
 
       const fsAccess = fsAccessFor(emp);
@@ -158,7 +165,7 @@ export function makeOrchestrator(company, broadcast) {
           progress(empId, `asking the Boss to approve delegating to ${target.name}…`);
           const approved = await requestApproval(empId, target.id, call.args.task);
           if (!approved) {
-            record({ from: empId, fromName: emp.name, to: target.id, kind: 'delegation',
+            worklog({ from: empId, fromName: emp.name, to: target.id, kind: 'delegation',
               text: `✕ Boss declined: "${call.args.task}"` });
             results.push({ id: call.id,
               content: 'The Boss DECLINED this delegation. Do not retry it; handle it yourself or explain what you need.' });
@@ -168,7 +175,7 @@ export function makeOrchestrator(company, broadcast) {
           progress(empId, `waiting on ${target.name}…`);
           const sub = await runAgent(target.id, empId, emp.name, call.args.task, depth + 1,
             { from: empId, fromName: emp.name, to: target.id, kind: 'delegation', text: `→ ${target.name}: ${call.args.task}` });
-          record({ from: target.id, fromName: target.name, to: empId, kind: 'delegation-result', text: sub });
+          worklog({ from: target.id, fromName: target.name, to: empId, kind: 'delegation-result', text: sub });
           progress(empId, `heard back from ${target.name} ✓`);
           results.push({ id: call.id, content: sub });
         }
