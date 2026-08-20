@@ -55,9 +55,15 @@
           <button class="btn danger" id="fireBtn"
             title="Let this employee go: they are removed from the roster and office. Their past messages stay in the company transcript. Click twice to confirm.">Fire 📦</button>
         </div>
+        <div class="tabs" id="chatTabs">
+          <button type="button" class="tab on" data-tab="chat">Chat</button>
+          <button type="button" class="tab" data-tab="terminal"
+            title="Raw engine trace — the actual claude -p runs, model output and delegations for this employee (session only)">Terminal</button>
+        </div>
         <div class="workstatus" id="workStatus" hidden
           title="Live work log — what this employee is doing right now"></div>
         <div class="msgs" id="msgs"></div>
+        <div class="term" id="terminal" hidden></div>
         <div class="workrail" id="workrail" hidden>
           <div class="wr-head" id="wrHead">working…</div>
           <div class="wr-log" id="wrLog"></div>

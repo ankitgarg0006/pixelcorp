@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import {
-  listCompanies, loadCompany, saveCompany, readMessages, ensureDemoCompany, deleteCompany,
+  listCompanies, loadCompany, saveCompany, readMessages, ensureDemoCompany, deleteCompany, readTrace,
 } from './store.js';
 import { makeOrchestrator } from './orchestrator.js';
 import { detectCLI, listCliMcp } from './providers.js';
@@ -139,6 +139,11 @@ export function startServer(port = 4310) {
           return send(200, readMessages(name, {
             withId: url.searchParams.get('with') || undefined,
             limit: Number(url.searchParams.get('limit') || 60),
+          }));
+        if (sub === '/trace' && req.method === 'GET')   // raw engine trace for the Terminal tab
+          return send(200, readTrace(name, {
+            withId: url.searchParams.get('with') || undefined,
+            limit: Number(url.searchParams.get('limit') || 400),
           }));
 
         if (sub === '/hire' && req.method === 'POST') {

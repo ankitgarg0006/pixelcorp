@@ -57,6 +57,33 @@ export function appendMessage(companyName, msg) {
   fs.appendFileSync(path.join(dir, 'messages.jsonl'), JSON.stringify(msg) + '\n');
 }
 
+// Raw engine trace for the Terminal tab — persisted separately from the chat
+// transcript, capped per entry and rotated so it can't bloat.
+const TRACE_MAX_OUT = 4000, TRACE_MAX_BYTES = 2_000_000;
+export function appendTrace(companyName, entry) {
+  const dir = companyDir(companyName);
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'trace.jsonl');
+  const e = { ...entry };
+  if (typeof e.output === 'string' && e.output.length > TRACE_MAX_OUT)
+    e.output = e.output.slice(0, TRACE_MAX_OUT) + '\n…[truncated]';
+  fs.appendFileSync(file, JSON.stringify(e) + '\n');
+  try {
+    if (fs.statSync(file).size > TRACE_MAX_BYTES) {   // rotate: keep the newer half
+      const lines = fs.readFileSync(file, 'utf8').trim().split('\n');
+      fs.writeFileSync(file, lines.slice(-Math.floor(lines.length / 2)).join('\n') + '\n');
+    }
+  } catch { /* ignore */ }
+}
+export function readTrace(companyName, { withId, limit = 400 } = {}) {
+  const file = path.join(companyDir(companyName), 'trace.jsonl');
+  if (!fs.existsSync(file)) return [];
+  const lines = fs.readFileSync(file, 'utf8').trim().split('\n').filter(Boolean);
+  let rows = lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  if (withId) rows = rows.filter(r => r.id === withId);
+  return rows.slice(-limit);
+}
+
 export function readMessages(companyName, { withId, limit = 50 } = {}) {
   const file = path.join(companyDir(companyName), 'messages.jsonl');
   if (!fs.existsSync(file)) return [];

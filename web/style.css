@@ -142,6 +142,7 @@ body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe
 .chathead .title{font-weight:700;font-size:13.5px;flex:1 1 100%;min-width:0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .msgs{padding:14px;display:flex;flex-direction:column;gap:10px;flex:1;overflow-y:auto}
+.msgs[hidden]{display:none}  /* .msgs display:flex would otherwise beat the hidden attr */
 .msg{max-width:82%;padding:8px 11px;border-radius:8px;font-size:13px;line-height:1.45;position:relative}
 /* hover-reveal copy buttons on messages and code blocks */
 .copybtn{position:absolute;top:5px;right:5px;width:23px;height:23px;border:0;border-radius:6px;
@@ -173,6 +174,26 @@ body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe
 .msg.me{background:var(--accent);color:#1D1830;align-self:flex-end}
 .msg.sys{align-self:center;background:none;color:var(--muted);
   font-family:ui-monospace,Menlo,monospace;font-size:10.5px;max-width:100%}
+/* Chat / Terminal tab strip */
+.tabs{display:flex;gap:2px;padding:8px 12px 0}
+.tab{flex:1;text-align:center;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;letter-spacing:.5px;
+  padding:8px 10px;border:1px solid var(--line);border-bottom:1px solid var(--line);
+  border-radius:7px 7px 0 0;background:#211B30;color:var(--muted);cursor:pointer}
+.tab.on{background:var(--hud);color:#EFEAF7;font-weight:700;box-shadow:inset 0 2px 0 var(--accent);border-bottom-color:var(--hud)}
+.tab:hover:not(.on){color:#CFC8E6}
+
+/* Terminal pane — raw engine trace */
+.term{flex:1;min-height:0;overflow-y:auto;background:#140F24;padding:12px 12px 6px;
+  font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:1.55;color:#CFC8E6}
+.term .t-cmd{color:#8FD8EF;margin-top:10px;word-break:break-all}
+.term .t-cmd .d{color:var(--good)}
+.term .t-out{color:#C9C2DE;white-space:pre-wrap;margin:2px 0}
+.term .t-note{color:#B892E0;margin:4px 0}
+.term .t-note.ok{color:#8FE0AC}
+.term .t-note.no{color:#E9A6A6}
+.term .t-dim{color:#6E6590}
+.term .t-empty{color:var(--muted);font-family:inherit;padding:6px 2px;line-height:1.6}
+
 /* transient work rail — tool calls / delegations while an employee works */
 .workrail{margin:2px 14px 0;border-top:1px dashed var(--line);padding:8px 2px 2px}
 .wr-head{display:flex;align-items:center;gap:7px;font-family:ui-monospace,Menlo,monospace;

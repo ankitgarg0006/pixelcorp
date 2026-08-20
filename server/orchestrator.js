@@ -2,7 +2,7 @@
 // persists the transcript, and broadcasts events for the office UI to animate.
 import fs from 'node:fs';
 import os from 'node:os';
-import { appendMessage, readMessages } from './store.js';
+import { appendMessage, readMessages, appendTrace } from './store.js';
 import { callLLM, anthropicToolResultTurn, openaiToolResultTurn, cliToolResultTurn } from './providers.js';
 
 // Charter → file access for CLI engines. An employee may ONLY touch the repos
@@ -104,6 +104,14 @@ export function makeOrchestrator(company, broadcast) {
   function worklog(msg) {
     broadcast({ type: 'worklog', company: company().name, ...msg, at: new Date().toISOString() });
   }
+  // raw engine trace for the opt-in Terminal tab (command + raw output + notes)
+  // — broadcast live AND persisted to trace.jsonl so it survives a reload.
+  function terminal(empId, payload) {
+    const at = new Date().toISOString();
+    broadcast({ type: 'terminal', company: company().name, id: empId, ...payload, at });
+    try { appendTrace(company().name, { id: empId, cmd: payload.cmd, note: payload.note, level: payload.level, output: payload.output, at }); }
+    catch { /* ignore */ }
+  }
 
   // Run one employee's agent turn on an incoming message. Returns reply text.
   // Turns for the same employee are queued so they never interleave.
@@ -148,6 +156,8 @@ export function makeOrchestrator(company, broadcast) {
       for (let step = 0; step < MAX_STEPS; step++) {
         progress(empId, step === 0 ? 'thinking…' : 'synthesizing results…');
         const out = await callLLM(emp.provider, { system, messages, tools, fsAccess });
+        terminal(empId, { cmd: out.raw?.cmd || `${emp.provider.type}:${emp.provider.model || emp.provider.tool || ''}`,
+          output: out.raw?.cliText != null ? out.raw.cliText : out.text, step });
         if (!out.toolCalls.length) return out.text || '…';
 
         // execute delegations sequentially so the office animates naturally
@@ -167,15 +177,18 @@ export function makeOrchestrator(company, broadcast) {
           if (!approved) {
             worklog({ from: empId, fromName: emp.name, to: target.id, kind: 'delegation',
               text: `✕ Boss declined: "${call.args.task}"` });
+            terminal(empId, { note: `✕ Boss declined delegation to ${target.name}`, level: 'no' });
             results.push({ id: call.id,
               content: 'The Boss DECLINED this delegation. Do not retry it; handle it yourself or explain what you need.' });
             continue;
           }
           broadcast({ type: 'delegate', company: company().name, from: empId, to: target.id, task: call.args.task });
+          terminal(empId, { note: `↳ delegate → ${target.name} · "${call.args.task}"` });
           progress(empId, `waiting on ${target.name}…`);
           const sub = await runAgent(target.id, empId, emp.name, call.args.task, depth + 1,
             { from: empId, fromName: emp.name, to: target.id, kind: 'delegation', text: `→ ${target.name}: ${call.args.task}` });
           worklog({ from: target.id, fromName: target.name, to: empId, kind: 'delegation-result', text: sub });
+          terminal(empId, { note: `← ${target.name} replied ✓`, level: 'ok', output: sub });
           progress(empId, `heard back from ${target.name} ✓`);
           results.push({ id: call.id, content: sub });
         }

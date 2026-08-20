@@ -289,15 +289,18 @@ async function callCLI(provider, { system, messages, tools, fsAccess }) {
     if (stdinPrompt != null) child.stdin.end(stdinPrompt); else child.stdin.end();
   });
   const text = stdout.trim();
+  // A display command for the Terminal tab — the real invocation minus the
+  // (huge, inline-for-copilot) prompt, so the UI can show what actually ran.
+  const cmd = [bin, ...args.filter(a => a !== prompt)].join(' ');
   if (tools?.length) {
     const del = extractDelegations(text);
     if (del) return {
       text: '',
       toolCalls: del.map((d, i) => ({ id: `cli_${i}`, name: 'delegate', args: d })),
-      raw: { cliText: text },
+      raw: { cliText: text, cmd },
     };
   }
-  return { text, toolCalls: [], raw: { cliText: text } };
+  return { text, toolCalls: [], raw: { cliText: text, cmd } };
 }
 
 export function cliToolResultTurn(assistantRaw, results) {

@@ -756,7 +756,7 @@ async function selectEmployee(id){
   if(!e)return;
   chatbox.hidden=false;hint.hidden=true;
   document.getElementById('chatTitle').textContent='Chat with '+e.name+' · '+e.role;
-  renderRoster();railClear();
+  renderRoster();railClear();setChatTab('chat');loadTrace(id);
   msgs.innerHTML='';
   const hist=await (await fetch('/api/company/'+encodeURIComponent(companyName)+'/history?with='+id)).json();
   hist.forEach(addMsgToPanel);
@@ -1165,6 +1165,8 @@ function connectWS(){
       logLine('delegation',(m.fromName||m.from)+' '+(m.kind==='delegation-result'?'replied':'→ '+m.to));
       if(m.from===selected||m.to===selected)railWork(m);
     }
+    if(m.type==='terminal')                                // raw engine trace → Terminal tab
+      termEntries(m).forEach(e=>pushTerm(m.id,e));
     if(m.type==='delegate'){
       logLine('delegation',m.from+' → '+m.to+': '+m.task);
     }
@@ -1175,6 +1177,7 @@ function connectWS(){
       say(m.id,'⚙ '+m.text,2600);
       renderRoster();updateWorkStatus();
       if(m.id===selected)railLine('↳ '+m.text);
+      pushTerm(m.id,{type:'dim',text:m.text});
     }
     if(m.type==='status'){
       const e=employees.find(x=>x.id===m.id);
@@ -1206,6 +1209,57 @@ function updateWorkStatus(){
   if(e&&e.busy){el.hidden=false;el.textContent=progressText[selected]||'working…';}
   else el.hidden=true;
 }
+// ---- Chat / Terminal tabs (Terminal = opt-in raw engine trace, session-only) ----
+let chatTab='chat';
+const termLog={};   // employee id -> [{type:'cmd'|'out'|'note'|'dim', text, level}]
+function setChatTab(t){
+  chatTab=t;
+  document.querySelectorAll('#chatTabs .tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  const chat=t==='chat';
+  document.getElementById('msgs').hidden=!chat;
+  document.getElementById('terminal').hidden=chat;
+  const wr=document.getElementById('workrail');if(wr)wr.style.display=chat?'':'none';
+  if(!chat)renderTerminal();
+}
+// split a terminal event into display lines (command, delegation note, raw output)
+function termEntries(m){
+  const out=[];
+  if(m.cmd)out.push({type:'cmd',text:m.cmd});
+  if(m.note)out.push({type:'note',text:m.note,level:m.level});
+  if(m.output!=null&&String(m.output).trim())out.push({type:'out',text:String(m.output).trim()});
+  return out;
+}
+function pushTerm(id,entry){
+  const arr=termLog[id]||(termLog[id]=[]);
+  arr.push(entry);if(arr.length>600)arr.splice(0,arr.length-600);
+  if(id===selected&&chatTab==='terminal')renderTerminal();
+}
+// load the persisted raw trace for an employee (survives reloads)
+function loadTrace(id){
+  fetch('/api/company/'+encodeURIComponent(companyName)+'/trace?with='+encodeURIComponent(id))
+    .then(r=>r.json()).then(rows=>{
+      const arr=[];rows.forEach(r=>arr.push(...termEntries(r)));
+      if(arr.length>600)arr.splice(0,arr.length-600);
+      termLog[id]=arr;
+      if(id===selected&&chatTab==='terminal')renderTerminal();
+    }).catch(()=>{});
+}
+function renderTerminal(){
+  const el=document.getElementById('terminal');if(!el)return;
+  const arr=termLog[selected]||[];
+  if(!arr.length){el.innerHTML='<div class="t-empty">No engine activity yet. Message this employee and the raw '+
+    'run (command, model output, delegations) shows here — session only.</div>';return;}
+  el.innerHTML=arr.map(e=>{
+    if(e.type==='cmd')return '<div class="t-cmd"><span class="d">$</span> '+esc(e.text)+'</div>';
+    if(e.type==='note')return '<div class="t-note '+(e.level||'')+'">'+esc(e.text)+'</div>';
+    if(e.type==='dim')return '<div class="t-dim">· '+esc(e.text)+'</div>';
+    return '<div class="t-out">'+esc(e.text)+'</div>';
+  }).join('');
+  el.scrollTop=el.scrollHeight;
+}
+const chatTabsEl=document.getElementById('chatTabs');
+if(chatTabsEl)chatTabsEl.addEventListener('click',ev=>{const b=ev.target.closest('.tab');if(b)setChatTab(b.dataset.tab);});
+
 // ---- transient work rail: streams tool calls / delegations, cleared on reply ----
 function railClear(){
   const r=document.getElementById('workrail');if(!r)return;
