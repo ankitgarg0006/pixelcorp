@@ -106,7 +106,7 @@ function buildBg(){
   });
   outlined(b,142,6,10,12,'#8C6E4A');R(b,144,8,6,8,'#C2CFA8');R(b,146,10,2,3,'#E8804C');
   outlined(b,352,7,12,10,'#8C6E4A');R(b,354,9,8,6,PAL.sky);R(b,356,12,4,2,'#4C8C50');
-  outlined(b,272,7,10,10,PAL.white);R(b,276,9,2,4,PAL.ink);R(b,277,12,3,1,PAL.ink);
+  // (wall clock is a live digital overlay — see .officeclock)
   [[26,58],[114,32]].forEach(([gy,gh])=>{
     R(b,128,gy,6,gh,'#B8ADD8');
     R(b,127,gy,1,gh,PAL.outline);R(b,134,gy,1,gh,PAL.outline);
@@ -380,6 +380,10 @@ function makeEl(cls,html,click){
 [['CEO cabin',64,48,0],['Product team',270,42,0],['Lounge',452,46,0],
  ['Meeting',66,146,1],['Kitchen',202,192,1],['Game corner',406,182,1]]
  .forEach(([txt,x,y,low])=>znEls.push({el:makeEl('zn',txt),x,y,by:y,low}));
+// live digital wall clock (real local time)
+const officeClock=makeEl('officeclock','00:00');
+function tickClock(){officeClock.textContent=new Date().toTimeString().slice(0,5);}
+tickClock();setInterval(tickClock,10000);
 const bossTag=makeEl('tag you','You');
 bossTag.title='This is you — move with the arrow keys, press Enter near an employee to talk';
 const bossBubble=makeEl('bubble','');
@@ -403,8 +407,9 @@ function syncOverlays(){
   });
 }
 function placeOverlays(){
-  const r=cv.getBoundingClientRect(),s=r.width/W;
-  const put=(el,x,y)=>{el.style.left=(x*s)+'px';el.style.top=(y*s)+'px';};
+  const r=cv.getBoundingClientRect(),sr=stage.getBoundingClientRect(),s=r.width/W;
+  const ox=r.left-sr.left, oy=r.top-sr.top;   // canvas offset within the stage (letterboxing)
+  const put=(el,x,y)=>{el.style.left=(ox+x*s)+'px';el.style.top=(oy+y*s)+'px';};
   employees.forEach(e=>{
     const top=e.y-(e.pose==='sit'?18:22);
     if(tags[e.id])put(tags[e.id],e.x,top-2);
@@ -421,6 +426,7 @@ function placeOverlays(){
   }else talkPrompt.hidden=true;
   put(catBubble,cat.x,cat.y-10);
   znEls.forEach(o=>put(o.el,o.x,o.y));
+  put(officeClock,277,13);   // wall clock
 }
 addEventListener('resize',placeOverlays);
 const sayT={};
@@ -455,7 +461,7 @@ const keys={};
 let nearId=null;
 function modalOpen(){return !!document.querySelector('.modal.on');}
 addEventListener('keydown',e=>{
-  if(officeApp.hidden||modalOpen())return;
+  if(officeApp.hidden||modalOpen()||!chatbox.hidden)return;
   const t=document.activeElement&&document.activeElement.tagName;
   if(t==='INPUT'||t==='TEXTAREA'||t==='SELECT')return;
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
@@ -704,7 +710,7 @@ function confirmDelete(btn,name){
 }
 function enterCompany(n){
   companyName=n;selected=null;
-  chatbox.hidden=true;hint.hidden=false;
+  chatbox.hidden=true;document.getElementById('chatBackdrop').hidden=true;
   feed.innerHTML='';document.getElementById('approvals').innerHTML='';
   launcher.hidden=true;officeApp.hidden=false;
   loadState().then(()=>logLine('system',n+' office opened · '+employees.length+' employees'));
@@ -750,11 +756,32 @@ function renderRoster(){
 const chatbox=document.getElementById('chatbox');
 const msgs=document.getElementById('msgs');
 const hint=document.getElementById('hint');
+
+// ---- Help modal ----
+const helpModal=document.getElementById('helpModal');
+document.getElementById('helpBtn').addEventListener('click',()=>helpModal.classList.add('on'));
+document.getElementById('helpClose').addEventListener('click',()=>helpModal.classList.remove('on'));
+helpModal.addEventListener('click',e=>{if(e.target===helpModal)helpModal.classList.remove('on');});
+
+// ---- chat modal: opens expanded on employee click; ✕ / Esc / backdrop close ----
+const chatBackdrop=document.getElementById('chatBackdrop');
+function openChat(){ chatBackdrop.hidden=false; }
+function closeChat(){
+  chatbox.hidden=true; chatBackdrop.hidden=true;
+  selected=null; renderRoster(); updateWorkStatus();
+}
+document.getElementById('chatClose').addEventListener('click',closeChat);
+chatBackdrop.addEventListener('click',closeChat);
+addEventListener('keydown',e=>{
+  if(e.key!=='Escape')return;
+  if(!chatbox.hidden){ closeChat(); e.preventDefault(); }
+  else if(helpModal.classList.contains('on'))helpModal.classList.remove('on');
+});
 async function selectEmployee(id){
   selected=id;
   const e=employees.find(x=>x.id===id);
   if(!e)return;
-  chatbox.hidden=false;hint.hidden=true;
+  chatbox.hidden=false;openChat();
   document.getElementById('chatTitle').textContent='Chat with '+e.name+' · '+e.role;
   renderRoster();railClear();setChatTab('chat');loadTrace(id);
   msgs.innerHTML='';
@@ -903,7 +930,7 @@ document.getElementById('fireBtn').addEventListener('click',async ev=>{
     method:'POST',headers:{'content-type':'application/json'},
     body:JSON.stringify({id:selected}),
   });
-  chatbox.hidden=true;hint.hidden=false;selected=null;
+  closeChat();
 });
 
 // ---- hire modal ----
@@ -1192,9 +1219,7 @@ function connectWS(){
     if(m.type==='hired'){logLine('🎉','hired '+m.name+' ('+m.role+')');loadState();}
     if(m.type==='fired'){logLine('📦',m.name+' has left the company');
       loadState().then(()=>{
-        if(selected&&!employees.find(e=>e.id===selected)){
-          selected=null;chatbox.hidden=true;hint.hidden=false;renderRoster();
-        }
+        if(selected&&!employees.find(e=>e.id===selected)) closeChat();
       });}
   };
   ws.onclose=()=>setTimeout(connectWS,1500);

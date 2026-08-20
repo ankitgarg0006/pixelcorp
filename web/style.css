@@ -7,20 +7,14 @@
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
-.app{max-width:1560px;margin:0 auto;padding:16px 18px 20px}
+.app{max-width:1560px;margin:0 auto;padding:8px 18px 8px}
 /* office view fills the screen height (desktop only — mobile stays natural flow).
    :not([hidden]) so an ID rule doesn't override the hidden attr on the launcher. */
 #officeApp:not([hidden]){display:flex;flex-direction:column}
-@media (min-width:1001px){
-  #officeApp{height:calc(100dvh - 36px)}
-  .main{overflow:hidden;grid-template-rows:minmax(0,1fr)}
-  .left,.right{min-height:0}
-  .stage{max-height:58vh;display:flex;justify-content:center}
-  .stage canvas{max-width:100%;max-height:58vh;width:auto;height:auto;margin:0 auto}
-}
+/* office box hugs the canvas (fills width, no top/bottom letterbox bands) */
 .spacer{flex:1}
 
-.topbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.topbar{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
 .companySel{font-family:ui-monospace,Menlo,monospace;font-size:12px;letter-spacing:.5px;
   background:var(--hud2);border:1px solid var(--line);color:#EFEAF7;
   padding:7px 10px;border-radius:4px;cursor:pointer}
@@ -54,6 +48,7 @@ body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe
 .card.newco .plus{font-size:26px;line-height:1}
 
 .approvals{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.approvals:empty{margin:0}   /* no gap when there are no pending approvals */
 .approval{background:#332D22;border:1px solid #E3B341;border-radius:8px;
   padding:10px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
   animation:apin .25s ease}
@@ -84,12 +79,18 @@ body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe
 .btn.danger:hover{border-color:#E36868;color:#E36868}
 .btn:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 
-.main{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:14px;flex:1;min-height:0}
-@media (max-width:1000px){.main{grid-template-columns:1fr;min-height:0}}
-.left{min-width:0;display:flex;flex-direction:column}
-.right{display:flex;flex-direction:column;min-height:0}
-.feed-box{flex:1;min-height:120px;display:flex;flex-direction:column}
-.feed-box .log{max-height:none;flex:1}
+/* office view stacks vertically: [office | activity] row, then full-width chat */
+.main{display:flex;flex-direction:column;gap:12px;flex:1;min-height:0}
+.officerow{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px}
+@media (max-width:1000px){.officerow{grid-template-columns:1fr}}
+.stage-wrap,.left{min-width:0}
+.feed-box{display:flex;flex-direction:column;min-height:120px}
+.feed-box .log{max-height:none;flex:1;overflow-y:auto}
+.main .hudbox,#chatbox{margin-top:0}   /* flex gaps handle spacing now */
+
+/* chat is a centered modal, opened expanded (near-full) by default */
+.chat-backdrop{position:fixed;inset:0;background:rgba(12,9,20,.62);z-index:59}
+.chat-backdrop[hidden]{display:none}
 
 .stage{position:relative;border-radius:10px;overflow:hidden;line-height:0;
   border:1px solid var(--line);box-shadow:0 20px 50px rgba(0,0,0,.4)}
@@ -112,14 +113,20 @@ body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe
   font-family:ui-monospace,Menlo,monospace;font-size:10px;font-weight:700;letter-spacing:.4px;
   padding:3px 9px;border-radius:7px;white-space:nowrap;z-index:4;pointer-events:none;
   box-shadow:0 2px 8px rgba(10,8,20,.4)}
-.zn{position:absolute;background:rgba(24,19,38,.55);color:#F3EDE2;
-  font-family:ui-monospace,Menlo,monospace;font-size:9.5px;letter-spacing:1.6px;
-  padding:2px 9px;border-radius:9px;transform:translate(-50%,-50%);pointer-events:none;z-index:1}
+.officeclock{position:absolute;transform:translate(-50%,-50%);z-index:2;pointer-events:none;
+  background:#160b0b;border:1px solid #3a1c1c;border-radius:4px;padding:2px 8px;
+  font-family:ui-monospace,Menlo,monospace;font-size:13px;font-weight:700;letter-spacing:1.5px;
+  color:#ff6a5a;text-shadow:0 0 6px rgba(255,80,60,.65);box-shadow:0 1px 4px rgba(0,0,0,.55)}
+/* zone names — solid black rectangular labels, roomy padding, no dot */
+.zn{position:absolute;transform:translate(-50%,-50%);z-index:3;pointer-events:none;white-space:nowrap;
+  background:#141020;color:#fff;border:1px solid rgba(255,255,255,.14);
+  font-family:ui-monospace,Menlo,monospace;font-size:11px;font-weight:700;letter-spacing:.4px;
+  line-height:1.2;padding:5px 12px;border-radius:3px;box-shadow:0 2px 6px rgba(0,0,0,.55)}
 
 .hudbox{background:var(--hud);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-top:12px}
 .hudbox h4{margin:0 0 8px;font-family:ui-monospace,Menlo,monospace;font-size:11px;
   letter-spacing:2px;text-transform:uppercase;color:var(--muted);font-weight:600}
-.hint{font-size:12.5px;color:var(--muted);line-height:1.6}
+.hint{font-size:12.5px;color:var(--muted);line-height:1.6;text-align:center;flex:none}
 .hint b{color:#CFC8E6}
 .hint code{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#CFC8E6}
 
@@ -135,8 +142,12 @@ body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe
 .roster .rl{color:var(--muted);font-size:10.5px;margin-left:auto;font-family:ui-monospace,Menlo,monospace}
 .roster .rl.busy{color:var(--warn)}
 
-.chatbox{background:var(--hud);border:1px solid var(--line);border-radius:8px;margin-top:12px;
-  display:flex;flex-direction:column;min-height:340px;flex:1}
+.chatbox{background:var(--hud);border:1px solid var(--line);border-radius:12px;
+  display:flex;flex-direction:column;position:fixed;inset:18px;z-index:60;
+  box-shadow:0 30px 70px rgba(0,0,0,.55)}
+.chatbox[hidden]{display:none}  /* display:flex would otherwise beat the hidden attr */
+.closebtn{border-color:var(--line);color:var(--muted)}
+.closebtn:hover{border-color:var(--bad);color:var(--bad)}
 .chathead{padding:11px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;
   align-items:center;flex-wrap:wrap;row-gap:8px}
 .chathead .title{font-weight:700;font-size:13.5px;flex:1 1 100%;min-width:0;
@@ -226,6 +237,9 @@ body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe
   border:1px solid var(--line);border-radius:4px;color:#EFEAF7;font:inherit;font-size:13px;padding:8px 10px}
 .modal-box textarea{min-height:60px;resize:vertical}
 .modal-box .row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.modal-box .sub{font-size:12.5px;color:#CFC8E6;line-height:1.65;margin:0 0 10px}
+.modal-box .sub b{color:#fff}
+.modal-box .sub code{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--hud3);padding:1px 5px;border-radius:4px}
 .modal-box .divide{height:1px;background:var(--line);margin:16px 0 2px}
 
 /* engine sign-in status card */

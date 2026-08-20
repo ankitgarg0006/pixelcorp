@@ -26,24 +26,24 @@
     <button class="btn" id="backBtn" title="Back to the company launcher">← Companies</button>
     <select class="companySel" id="companySel" title="Quick-switch to another company"></select>
     <span class="spacer"></span>
+    <button class="btn" id="helpBtn" title="How to play pixelcorp">❔ Help</button>
     <button class="btn primary" id="hireBtn" title="Hire a new employee: name, role, persona, engine, manager and charter">🎉 Hire</button>
   </header>
   <div class="approvals" id="approvals"></div>
 
   <main class="main">
-    <section class="left">
+    <div class="officerow">
       <div class="stage" id="stage"><canvas id="cv" width="512" height="288"></canvas></div>
       <div class="hudbox feed-box">
         <h4>Activity</h4>
         <div class="log" id="feed"></div>
       </div>
-    </section>
+    </div>
 
-    <aside class="right">
-      <div class="hudbox" id="rosterBox" hidden>
-        <h4>Roster — click to chat</h4>
-        <div class="roster" id="roster"></div>
-      </div>
+    <div class="hudbox" id="rosterBox" hidden>
+      <h4>Roster — click to chat</h4>
+      <div class="roster" id="roster"></div>
+    </div>
       <div class="chatbox" id="chatbox" hidden>
         <div class="chathead">
           <span class="title" id="chatTitle"></span>
@@ -54,6 +54,7 @@
             title="Edit this employee's charter: which repos they may access and what they may do there">📂 Charter</button>
           <button class="btn danger" id="fireBtn"
             title="Let this employee go: they are removed from the roster and office. Their past messages stay in the company transcript. Click twice to confirm.">Fire 📦</button>
+          <button class="btn closebtn" id="chatClose" title="Close (Esc)">✕</button>
         </div>
         <div class="tabs" id="chatTabs">
           <button type="button" class="tab on" data-tab="chat">Chat</button>
@@ -75,19 +76,23 @@
             title="Send — tasks are just messages; managers may ask your approval to delegate">Send</button>
         </form>
       </div>
-      <div class="hudbox hint" id="hint">
-        <b>Move with the arrow keys</b> — walk up to an employee and press
-        <b>Enter</b> to talk, or just click them in the office.<br><br>
-        Talk to the <b>CEO or CTO</b> and watch them delegate to the team — or message an
-        engineer directly.<br><br>
-        <b>No API key needed</b> if you're signed into Claude Code (<code>claude</code> CLI) or
-        Copilot CLI — employees on those engines bill your subscription. API-key
-        (<code>ANTHROPIC_API_KEY</code>/<code>OPENAI_API_KEY</code>) and free local Ollama
-        engines also work, mix per employee.
-      </div>
-    </aside>
+      <div class="hudbox hint" id="hint"><span>Walk up to an employee and press <b>Enter</b> — or just click one in the office — to start chatting.
+        New here? Hit <b>❔ Help</b> up top.</span></div>
   </main>
+  <div class="chat-backdrop" id="chatBackdrop" hidden></div>
   </div><!-- /officeApp -->
+</div>
+
+<!-- help modal -->
+<div class="modal" id="helpModal">
+  <div class="modal-box">
+    <h3>❔ How to play</h3>
+    <p class="sub"><b>Move with the arrow keys</b> — walk up to an employee and press <b>Enter</b> to talk, or just click them in the office.</p>
+    <p class="sub">Talk to the <b>CEO or CTO</b> and watch them delegate to the team — or message an engineer directly. Tasks are just messages.</p>
+    <p class="sub"><b>No API key needed</b> if you're signed into Claude Code (<code>claude</code> CLI) or Copilot CLI — those engines bill your subscription. API-key (<code>ANTHROPIC_API_KEY</code> / <code>OPENAI_API_KEY</code>) and free local Ollama engines also work, mix per employee.</p>
+    <p class="sub">Open an employee's <b>Terminal</b> tab to watch the raw engine run, or hit <b>⛶ Expand</b> to blow the chat up to full screen.</p>
+    <div class="row"><button class="btn primary" id="helpClose">Got it</button></div>
+  </div>
 </div>
 
 <!-- hire modal -->
