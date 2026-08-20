@@ -155,9 +155,8 @@ export function makeOrchestrator(company, broadcast) {
       const fsAccess = fsAccessFor(emp);
       for (let step = 0; step < MAX_STEPS; step++) {
         progress(empId, step === 0 ? 'thinking…' : 'synthesizing results…');
-        const out = await callLLM(emp.provider, { system, messages, tools, fsAccess });
-        terminal(empId, { cmd: out.raw?.cmd || `${emp.provider.type}:${emp.provider.model || emp.provider.tool || ''}`,
-          output: out.raw?.cliText != null ? out.raw.cliText : out.text, step });
+        const out = await callLLM(emp.provider, { system, messages, tools, fsAccess,
+          onTerminal: payload => terminal(empId, payload) });   // live trace → Terminal tab
         if (!out.toolCalls.length) return out.text || '…';
 
         // execute delegations sequentially so the office animates naturally

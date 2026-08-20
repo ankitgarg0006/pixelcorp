@@ -7,11 +7,12 @@
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
-.app{max-width:1560px;margin:0 auto;padding:8px 18px 8px}
+.app{max-width:none;margin:0;padding:8px 10px}   /* full-screen, edge to edge */
 /* office view fills the screen height (desktop only — mobile stays natural flow).
    :not([hidden]) so an ID rule doesn't override the hidden attr on the launcher. */
 #officeApp:not([hidden]){display:flex;flex-direction:column}
-/* office box hugs the canvas (fills width, no top/bottom letterbox bands) */
+@media (min-width:1001px){ #officeApp{height:calc(100dvh - 16px)} }
+/* office fills the whole area; Team/Activity float over its top-right corner */
 .spacer{flex:1}
 
 .topbar{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
@@ -79,20 +80,23 @@ body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe
 .btn.danger:hover{border-color:#E36868;color:#E36868}
 .btn:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 
-/* office view stacks vertically: [office | activity] row, then full-width chat */
-.main{display:flex;flex-direction:column;gap:12px;flex:1;min-height:0}
-.officerow{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px}
-@media (max-width:1000px){.officerow{grid-template-columns:1fr}}
-.stage-wrap,.left{min-width:0}
-.feed-box{display:flex;flex-direction:column;min-height:120px}
-.feed-box .log{max-height:none;flex:1;overflow-y:auto}
+/* office (left) with Team + Activity beside it on the right — in flow, not floating */
+.main{display:flex;flex-direction:column;gap:10px;flex:1;min-height:0}
+.officerow{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;flex:1;min-height:0;align-items:start}
+.siderail{align-self:stretch;height:100%;display:flex;flex-direction:column;gap:12px;min-width:0;min-height:0}
+.siderail #rosterBox{flex:none;max-height:46%;display:flex;flex-direction:column;min-height:0}
+.siderail .feed-box{flex:1;display:flex;flex-direction:column;min-height:0}
+.siderail .roster,.siderail .log{overflow-y:auto;min-height:0;flex:1;max-height:none}
+@media (max-width:1000px){.officerow{grid-template-columns:1fr;flex:none;align-items:stretch}
+  .siderail{height:auto}.siderail #rosterBox{max-height:none}
+  .siderail .roster,.siderail .log{max-height:160px}}
 .main .hudbox,#chatbox{margin-top:0}   /* flex gaps handle spacing now */
 
 /* chat is a centered modal, opened expanded (near-full) by default */
 .chat-backdrop{position:fixed;inset:0;background:rgba(12,9,20,.62);z-index:59}
 .chat-backdrop[hidden]{display:none}
 
-.stage{position:relative;border-radius:10px;overflow:hidden;line-height:0;
+.stage{position:relative;border-radius:10px;overflow:hidden;line-height:0;align-self:start;
   border:1px solid var(--line);box-shadow:0 20px 50px rgba(0,0,0,.4)}
 .stage canvas{width:100%;height:auto;display:block;image-rendering:pixelated}
 
@@ -109,13 +113,18 @@ body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe
 .bubble::after{content:"";position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);
   border:6px solid transparent;border-top-color:#fff;border-bottom:0}
 .bubble.show{opacity:1}
-.talkprompt{position:absolute;transform:translate(-50%,0);background:var(--accent);color:#1D1830;
-  font-family:ui-monospace,Menlo,monospace;font-size:10px;font-weight:700;letter-spacing:.4px;
-  padding:3px 9px;border-radius:7px;white-space:nowrap;z-index:4;pointer-events:none;
-  box-shadow:0 2px 8px rgba(10,8,20,.4)}
+/* action prompt — dark label matching the zone labels, with an accent Enter key */
+.talkprompt{position:absolute;transform:translate(-50%,0);z-index:4;pointer-events:none;
+  display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+  background:#141020;color:#fff;border:1px solid rgba(255,255,255,.14);
+  font-family:ui-monospace,Menlo,monospace;font-size:10.5px;font-weight:700;letter-spacing:.4px;
+  padding:5px 11px 5px 6px;border-radius:3px;box-shadow:0 2px 6px rgba(0,0,0,.55)}
+.talkprompt .k{background:var(--accent);color:#1D1830;font-weight:800;font-size:9.5px;
+  letter-spacing:.5px;padding:2px 6px;border-radius:3px;box-shadow:0 1px 0 rgba(0,0,0,.25)}
 .officeclock{position:absolute;transform:translate(-50%,-50%);z-index:2;pointer-events:none;
-  background:#160b0b;border:1px solid #3a1c1c;border-radius:4px;padding:2px 8px;
-  font-family:ui-monospace,Menlo,monospace;font-size:13px;font-weight:700;letter-spacing:1.5px;
+  display:inline-flex;align-items:center;justify-content:center;line-height:1;
+  background:#160b0b;border:1px solid #3a1c1c;border-radius:4px;padding:5px 10px;
+  font-family:ui-monospace,Menlo,monospace;font-size:13px;font-weight:700;letter-spacing:2px;
   color:#ff6a5a;text-shadow:0 0 6px rgba(255,80,60,.65);box-shadow:0 1px 4px rgba(0,0,0,.55)}
 /* zone names — solid black rectangular labels, roomy padding, no dot */
 .zn{position:absolute;transform:translate(-50%,-50%);z-index:3;pointer-events:none;white-space:nowrap;
@@ -179,6 +188,9 @@ body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe
 .msg .md pre{background:#1E1930;border:1px solid var(--line);border-radius:6px;
   padding:10px 12px;overflow-x:auto;margin:6px 0}
 .msg .md pre code{background:none;padding:0;display:block;line-height:1.55;white-space:pre}
+/* highlight.js: keep our own code-block background, let the theme color tokens */
+.md pre code.hljs,.term code.hljs{background:transparent;padding:0}
+.md .md-lang{position:absolute;top:5px;right:34px;font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);font-family:ui-monospace,Menlo,monospace}
 .msg .who{font-family:ui-monospace,Menlo,monospace;font-size:9.5px;letter-spacing:1px;
   text-transform:uppercase;opacity:.65;margin-bottom:2px}
 .msg.them{background:var(--hud3);align-self:flex-start}
@@ -194,11 +206,24 @@ body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe
 .tab:hover:not(.on){color:#CFC8E6}
 
 /* Terminal pane — raw engine trace */
-.term{flex:1;min-height:0;overflow-y:auto;background:#140F24;padding:12px 12px 6px;
-  font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:1.55;color:#CFC8E6}
+.term{flex:1;min-height:0;overflow-y:auto;background:#0b0b0d;padding:12px 12px 6px;
+  font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:1.55;color:#d6d3cc}
 .term .t-cmd{color:#8FD8EF;margin-top:10px;word-break:break-all}
 .term .t-cmd .d{color:var(--good)}
-.term .t-out{color:#C9C2DE;white-space:pre-wrap;margin:2px 0}
+.term .t-out{color:#D7D0E6;white-space:pre-wrap;margin:3px 0}
+.term .t-out code.hljs{display:block;background:transparent;padding:0;white-space:pre-wrap}
+.term .t-tool{color:#8FE0AC;margin:3px 0}
+.term .t-tool .tk{color:#5CB863}
+.term .t-tool b{font-weight:700;color:#A6EFC2}
+.term .t-tool .ta{color:#B39B76;font-weight:400}
+.term .t-toolres{color:#8FA2BC;white-space:pre-wrap;margin:1px 0 4px 8px;opacity:.85}
+.term .t-toolres{cursor:pointer}
+.term .t-toolres .tr-more{color:#5f6b82;font-size:10px;margin-left:4px}
+.term .t-toolres.collapsed .tr-more::before{content:'▸ '}
+.term .t-toolres:not(.collapsed) .tr-more::before{content:'▾ '}
+.term .t-toolres .tr-full{margin:3px 0 0;white-space:pre-wrap;color:#9aa8c0;font-family:inherit;font-size:10.5px;
+  border-left:2px solid #2a2f3a;padding-left:8px;max-height:280px;overflow:auto}
+.term .t-toolres.collapsed .tr-full{display:none}
 .term .t-note{color:#B892E0;margin:4px 0}
 .term .t-note.ok{color:#8FE0AC}
 .term .t-note.no{color:#E9A6A6}
@@ -226,7 +251,7 @@ body{background:#1E1930;color:#EFEAF7;font-family:system-ui,-apple-system,"Segoe
 .composer .btn.primary{align-self:flex-end}
 
 .modal{position:fixed;inset:0;background:rgba(16,12,28,.7);display:none;
-  align-items:center;justify-content:center;z-index:50;padding:20px}
+  align-items:center;justify-content:center;z-index:80;padding:20px}  /* above the chat modal (60) */
 .modal.on{display:flex}
 .modal-box{background:var(--hud2);border:1px solid var(--line);border-radius:10px;
   width:min(420px,100%);padding:20px}

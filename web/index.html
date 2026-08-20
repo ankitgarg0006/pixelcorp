@@ -34,15 +34,16 @@
   <main class="main">
     <div class="officerow">
       <div class="stage" id="stage"><canvas id="cv" width="512" height="288"></canvas></div>
-      <div class="hudbox feed-box">
-        <h4>Activity</h4>
-        <div class="log" id="feed"></div>
-      </div>
-    </div>
-
-    <div class="hudbox" id="rosterBox" hidden>
-      <h4>Roster — click to chat</h4>
-      <div class="roster" id="roster"></div>
+      <aside class="siderail">
+        <div class="hudbox" id="rosterBox">
+          <h4>Team — click to chat</h4>
+          <div class="roster" id="roster"></div>
+        </div>
+        <div class="hudbox feed-box">
+          <h4>Activity</h4>
+          <div class="log" id="feed"></div>
+        </div>
+      </aside>
     </div>
       <div class="chatbox" id="chatbox" hidden>
         <div class="chathead">
@@ -87,10 +88,11 @@
 <div class="modal" id="helpModal">
   <div class="modal-box">
     <h3>❔ How to play</h3>
-    <p class="sub"><b>Move with the arrow keys</b> — walk up to an employee and press <b>Enter</b> to talk, or just click them in the office.</p>
+    <p class="sub"><b>Move with the arrow keys</b> — walk up to an employee and press <b>Enter</b> to talk. Or just <b>click</b> a teammate, in the office or the <b>Team</b> list on the right. Hovering someone in the office pauses them so they're easy to click.</p>
     <p class="sub">Talk to the <b>CEO or CTO</b> and watch them delegate to the team — or message an engineer directly. Tasks are just messages.</p>
+    <p class="sub"><b>Have a break:</b> walk up to the water cooler, coffee, couch, bookshelf or ping-pong table and press <b>Enter</b>. Idle teammates roam and take breaks too.</p>
     <p class="sub"><b>No API key needed</b> if you're signed into Claude Code (<code>claude</code> CLI) or Copilot CLI — those engines bill your subscription. API-key (<code>ANTHROPIC_API_KEY</code> / <code>OPENAI_API_KEY</code>) and free local Ollama engines also work, mix per employee.</p>
-    <p class="sub">Open an employee's <b>Terminal</b> tab to watch the raw engine run, or hit <b>⛶ Expand</b> to blow the chat up to full screen.</p>
+    <p class="sub">Open an employee's <b>Terminal</b> tab to watch the raw engine run. Close the chat with <b>Esc</b>, the <b>✕</b>, or by clicking outside it.</p>
     <div class="row"><button class="btn primary" id="helpClose">Got it</button></div>
   </div>
 </div>
@@ -225,8 +227,10 @@
   </div>
 </div>
 
+<link rel="stylesheet" href="/vendor/hljs-theme.css">
 <script src="/vendor/marked.js"></script>
 <script src="/vendor/purify.js"></script>
+<script src="/vendor/hljs.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

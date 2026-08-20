@@ -64,16 +64,18 @@ function keyFor(provider) {
   return process.env.OPENAI_API_KEY || '';
 }
 
-export async function callLLM(provider, { system, messages, tools, fsAccess }) {
-  if (provider.type === 'anthropic') return callAnthropic(provider, { system, messages, tools });
-  if (provider.type === 'cli') return callCLI(provider, { system, messages, tools, fsAccess });
-  return callOpenAI(provider, { system, messages, tools });
+export async function callLLM(provider, { system, messages, tools, fsAccess, onTerminal }) {
+  if (provider.type === 'anthropic') return callAnthropic(provider, { system, messages, tools, onTerminal });
+  if (provider.type === 'cli') return callCLI(provider, { system, messages, tools, fsAccess, onTerminal });
+  return callOpenAI(provider, { system, messages, tools, onTerminal });
 }
 
 // ---------- Anthropic Messages API ----------
-async function callAnthropic(provider, { system, messages, tools }) {
+async function callAnthropic(provider, { system, messages, tools, onTerminal }) {
+  const emit = typeof onTerminal === 'function' ? onTerminal : () => {};
   const key = keyFor(provider);
   if (!key) throw new Error('No API key: set ANTHROPIC_API_KEY (or provider.apiKeyEnv).');
+  emit({ cmd: `POST api.anthropic.com/v1/messages · ${provider.model || 'claude-sonnet-5'}` });
   const body = {
     model: provider.model || 'claude-sonnet-5',
     max_tokens: 1024,
@@ -99,8 +101,8 @@ async function callAnthropic(provider, { system, messages, tools }) {
   let text = '';
   const toolCalls = [];
   for (const block of data.content || []) {
-    if (block.type === 'text') text += block.text;
-    if (block.type === 'tool_use') toolCalls.push({ id: block.id, name: block.name, args: block.input });
+    if (block.type === 'text') { text += block.text; if (block.text?.trim()) emit({ output: block.text }); }
+    if (block.type === 'tool_use') { toolCalls.push({ id: block.id, name: block.name, args: block.input }); emit({ tool: block.name, args: toolSummary(block.name, block.input) }); }
   }
   return { text: text.trim(), toolCalls, raw: data };
 }
@@ -115,11 +117,13 @@ export function anthropicToolResultTurn(assistantRaw, results) {
 }
 
 // ---------- OpenAI-compatible (OpenAI, DeepSeek, Gemini-compat, Ollama, Groq…) ----------
-async function callOpenAI(provider, { system, messages, tools }) {
+async function callOpenAI(provider, { system, messages, tools, onTerminal }) {
+  const emit = typeof onTerminal === 'function' ? onTerminal : () => {};
   const baseURL = (provider.baseURL || 'https://api.openai.com/v1').replace(/\/$/, '');
   const key = keyFor(provider);
   const isLocal = baseURL.includes('localhost') || baseURL.includes('127.0.0.1');
   if (!key && !isLocal) throw new Error('No API key: set OPENAI_API_KEY (or provider.apiKeyEnv).');
+  emit({ cmd: `POST ${baseURL}/chat/completions · ${provider.model || ''}` });
   const body = {
     model: provider.model,
     messages: [{ role: 'system', content: system }, ...messages],
@@ -145,6 +149,8 @@ async function callOpenAI(provider, { system, messages, tools }) {
     id: tc.id, name: tc.function.name,
     args: safeJSON(tc.function.arguments),
   }));
+  if (choice.content?.trim()) emit({ output: choice.content });
+  toolCalls.forEach(tc => emit({ tool: tc.name, args: toolSummary(tc.name, tc.args) }));
   return { text: (choice.content || '').trim(), toolCalls, raw: choice };
 }
 
@@ -171,7 +177,9 @@ function cliCommand(provider) {
     if (provider.model && provider.model !== 'default') cmd.push('--model', provider.model);
     return cmd;
   }
-  const cmd = ['claude', '-p', '--output-format', 'text'];
+  // stream-json surfaces the full agentic trace (tool calls, results, messages)
+  // so the Terminal tab can show what the CLI actually did, like the real CLI.
+  const cmd = ['claude', '-p', '--output-format', 'stream-json', '--verbose'];
   if (provider.model) cmd.push('--model', provider.model);
   return cmd;
 }
@@ -216,7 +224,28 @@ function extractDelegations(text) {
   } catch { return null; }
 }
 
-async function callCLI(provider, { system, messages, tools, fsAccess }) {
+// summarize a tool_use input for the Terminal (e.g. Read(app.js), Bash(grep …))
+function toolSummary(name, input) {
+  if (!input || typeof input !== 'object') return '';
+  const i = input;
+  const short = v => { v = String(v ?? ''); return v.length > 80 ? v.slice(0, 80) + '…' : v; };
+  if (i.file_path) return short(i.file_path.split('/').slice(-2).join('/'));
+  if (i.path) return short(i.path);
+  if (i.pattern) return short(i.pattern) + (i.path ? ' in ' + short(i.path) : '');
+  if (i.command) return short(i.command);
+  if (i.url) return short(i.url);
+  if (i.query) return short(i.query);
+  if (i.description) return short(i.description);
+  return short(Object.values(i)[0]);
+}
+function resultText(content) {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) return content.map(c => c.text || c.content || '').join('\n');
+  return '';
+}
+
+async function callCLI(provider, { system, messages, tools, fsAccess, onTerminal }) {
+  const emit = typeof onTerminal === 'function' ? onTerminal : () => {};
   const custom = provider.command?.length;
   const [bin, ...args] = cliCommand(provider);
   // Charter scoping: the employee's first repo becomes the CLI's working
@@ -272,11 +301,39 @@ async function callCLI(provider, { system, messages, tools, fsAccess }) {
     args.push('--allow-all-tools', '-p', prompt);
     stdinPrompt = null;
   }
-  const stdout = await new Promise((resolve, reject) => {
+  // display command for the Terminal (the invocation minus the huge prompt)
+  const cmd = [bin, ...args.filter(a => a !== prompt)].join(' ');
+  emit({ cmd });
+  const streaming = bin === 'claude' && !custom;   // stream-json → rich trace
+
+  const result = await new Promise((resolve, reject) => {
     const child = spawn(bin, args, { stdio: ['pipe', 'pipe', 'pipe'], cwd, env: childEnv });
-    let out = '', err = '';
+    let raw = '', err = '', buf = '', finalText = '';
     const timer = setTimeout(() => { child.kill(); reject(new Error(`${bin} timed out after 180s`)); }, 180_000);
-    child.stdout.on('data', d => out += d);
+    function handleEvent(ev) {
+      if (ev.type === 'assistant' && ev.message?.content) {
+        for (const c of ev.message.content) {
+          if (c.type === 'text' && c.text?.trim()) emit({ output: c.text });
+          else if (c.type === 'tool_use') emit({ tool: c.name, args: toolSummary(c.name, c.input) });
+        }
+      } else if (ev.type === 'user' && ev.message?.content) {
+        for (const c of ev.message.content)
+          if (c.type === 'tool_result') { const t = resultText(c.content).trim(); if (t) emit({ toolResult: t.slice(0, 4000) }); }
+      } else if (ev.type === 'result') {
+        if (typeof ev.result === 'string') finalText = ev.result;
+      }
+    }
+    child.stdout.on('data', d => {
+      raw += d;
+      if (!streaming) return;
+      buf += d;
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+        if (!line) continue;
+        try { handleEvent(JSON.parse(line)); } catch { /* partial / non-json */ }
+      }
+    });
     child.stderr.on('data', d => err += d);
     child.on('error', e => { clearTimeout(timer);
       reject(new Error(e.code === 'ENOENT'
@@ -284,14 +341,13 @@ async function callCLI(provider, { system, messages, tools, fsAccess }) {
         : e.message)); });
     child.on('close', code => { clearTimeout(timer);
       if (mcpFile) { try { fs.unlinkSync(mcpFile); } catch { /* ignore */ } }
-      if (code === 0) resolve(out);
-      else reject(new Error(`${bin} exited ${code}: ${(err || out).slice(0, 300)}`)); });
+      if (code !== 0) return reject(new Error(`${bin} exited ${code}: ${(err || raw).slice(0, 300)}`));
+      if (streaming) resolve((finalText || '').trim());
+      else { const t = raw.trim(); emit({ output: t }); resolve(t); }   // copilot/custom: plain text
+    });
     if (stdinPrompt != null) child.stdin.end(stdinPrompt); else child.stdin.end();
   });
-  const text = stdout.trim();
-  // A display command for the Terminal tab — the real invocation minus the
-  // (huge, inline-for-copilot) prompt, so the UI can show what actually ran.
-  const cmd = [bin, ...args.filter(a => a !== prompt)].join(' ');
+  const text = result;
   if (tools?.length) {
     const del = extractDelegations(text);
     if (del) return {

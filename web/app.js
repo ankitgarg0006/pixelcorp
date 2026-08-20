@@ -288,15 +288,22 @@ function staticScenery(arr){
     R(c,287,168,8,8,'#8FD8EF');R(c,288,169,6,3,'#C8ECFA');
     R(c,287,184,3,3,'#6FA8C9');
   });
-  // game corner — the ball rests until an actual match is on (ambient-life roadmap)
+  // game corner — the ball rallies while you play (pongTil), else rests
   lowPiece(arr,234,(c,t)=>{
     shadow(c,330,234,52);
     block(c,330,206,52,18,8,'#4CA05C','#3C8449');
     R(c,330,214,52,1,'rgba(255,255,255,.5)');
     R(c,355,205,2,20,PAL.white);
     R(c,334,232,4,6,'#2E2837');R(c,374,232,4,6,'#2E2837');
-    R(c,344,208,2,2,PAL.white);   // resting ball + paddles
-    R(c,336,210,5,3,'#C4553E');R(c,372,210,5,3,'#3E5077');
+    if(pongTil>t){                                   // live rally
+      const per=680, ph=(t%per)/per, tri=ph<.5?ph*2:2-ph*2;   // 0→1→0 sweep
+      const bx=Math.round(335+tri*42), arc=Math.round(6*Math.sin((ph%.5)*2*Math.PI));
+      R(c,bx,208-arc,2,2,PAL.white);
+      R(c,336,ph<.5?208:212,5,3,'#C4553E');R(c,372,ph<.5?212:208,5,3,'#3E5077'); // paddles react
+    }else{
+      R(c,344,208,2,2,PAL.white);
+      R(c,336,210,5,3,'#C4553E');R(c,372,210,5,3,'#3E5077');
+    }
   });
   lowPiece(arr,214,c=>{R(c,447,202,16,13,PAL.outline);R(c,448,203,14,11,'#9A6CD8');R(c,450,204,10,4,'#AC82E4');});
   lowPiece(arr,250,c=>plantPiece(c,468,232,1));
@@ -380,7 +387,7 @@ function makeEl(cls,html,click){
 [['CEO cabin',64,48,0],['Product team',270,42,0],['Lounge',452,46,0],
  ['Meeting',66,146,1],['Kitchen',202,192,1],['Game corner',406,182,1]]
  .forEach(([txt,x,y,low])=>znEls.push({el:makeEl('zn',txt),x,y,by:y,low}));
-// live digital wall clock (real local time)
+// crisp digital wall clock (DOM overlay; employees stay on the floor, boss can't reach the wall)
 const officeClock=makeEl('officeclock','00:00');
 function tickClock(){officeClock.textContent=new Date().toTimeString().slice(0,5);}
 tickClock();setInterval(tickClock,10000);
@@ -411,22 +418,22 @@ function placeOverlays(){
   const ox=r.left-sr.left, oy=r.top-sr.top;   // canvas offset within the stage (letterboxing)
   const put=(el,x,y)=>{el.style.left=(ox+x*s)+'px';el.style.top=(oy+y*s)+'px';};
   employees.forEach(e=>{
-    const top=e.y-(e.pose==='sit'?18:22);
-    if(tags[e.id])put(tags[e.id],e.x,top-2);
-    if(bubbles[e.id])put(bubbles[e.id],e.x,top-6);
+    const top=e.y-(e.pose==='sit'?24:28);   // clear the head so the name never sits on the face
+    if(tags[e.id])put(tags[e.id],e.x,top);
+    if(bubbles[e.id])put(bubbles[e.id],e.x,top-4);
   });
   put(bossTag,boss.x,boss.y-24);put(bossBubble,boss.x,boss.y-28);
   if(nearId){
     const e=employees.find(x=>x.id===nearId);
-    if(e){talkPrompt.hidden=false;talkPrompt.textContent='⏎ talk to '+e.name;
+    if(e){talkPrompt.hidden=false;talkPrompt.innerHTML='<span class="k">Enter</span> talk to '+esc(e.name);
       put(talkPrompt,boss.x,boss.y+14);}
   }else if(nearProp){
-    talkPrompt.hidden=false;talkPrompt.textContent='⏎ '+nearProp.prompt;
+    talkPrompt.hidden=false;talkPrompt.innerHTML='<span class="k">Enter</span> '+esc(nearProp.prompt);
     put(talkPrompt,boss.x,boss.y+14);
   }else talkPrompt.hidden=true;
   put(catBubble,cat.x,cat.y-10);
   znEls.forEach(o=>put(o.el,o.x,o.y));
-  put(officeClock,277,13);   // wall clock
+  put(officeClock,277,12);   // wall clock
 }
 addEventListener('resize',placeOverlays);
 const sayT={};
@@ -474,8 +481,28 @@ addEventListener('keydown',e=>{
 });
 addEventListener('keyup',e=>{delete keys[e.key];});
 addEventListener('blur',()=>{for(const k in keys)delete keys[k];});
+
+// Hover an employee sprite → freeze them (so they stop roaming and are clickable);
+// click opens the chat. (Employees also stay clickable in the Team list.)
+let hoverEmp=null;
+function empAt(cx,cy){
+  let best=null,bd=14;
+  for(const e of employees){
+    if(e.x==null)continue;
+    const d=Math.hypot(cx-e.x,(cy-(e.y-10))*0.8);
+    if(d<bd && cy>e.y-26 && cy<e.y+4){bd=d;best=e;}
+  }
+  return best;
+}
+function canvasXY(ev){const r=cv.getBoundingClientRect(),s=r.width/W;return [(ev.clientX-r.left)/s,(ev.clientY-r.top)/s];}
+cv.addEventListener('mousemove',ev=>{
+  const [cx,cy]=canvasXY(ev);const e=empAt(cx,cy);
+  hoverEmp=e?e.id:null;cv.style.cursor=e?'pointer':'default';
+});
+cv.addEventListener('mouseleave',()=>{hoverEmp=null;cv.style.cursor='default';});
+cv.addEventListener('click',ev=>{const [cx,cy]=canvasXY(ev);const e=empAt(cx,cy);if(e)selectEmployee(e.id);});
 function bossBlocked(x,y){
-  if(x<14||x>498||y<34||y>H-14)return true;
+  if(x<14||x>498||y<42||y>H-14)return true;   // y>=42 keeps your head clear of the wall clock
   const bx=x-6,by=y-13,bw=12,bh=13;
   return SOLIDS.some(([rx,ry,rw,rh])=>bx<rx+rw&&bx+bw>rx&&by<ry+rh&&by+bh>ry);
 }
@@ -543,6 +570,7 @@ function pickTarget(e){
 function stepEmployees(dt,t){
   employees.forEach(e=>{
     if(e.x==null)return;
+    if(e.id===hoverEmp){e.pose=e.sitting?'sit':'stand';return;}  // frozen while hovered → clickable
     if(e.busy){                                   // working → go home, sit, focus
       e.act=null;e.target=null;e.dwell=0;e.sitting=false;
       if(walkTo(e,e.homeX,e.homeY,66,dt))e.pose=e.homePose||'sit';
@@ -563,12 +591,13 @@ function stepEmployees(dt,t){
   });
 }
 // You can use the props too: walk up, press Enter.
-let nearProp=null,bossActT=null;
+let nearProp=null,bossActT=null,pongTil=0;
 function bossActivity(a){
   say('boss',a.emoji+' '+a.prompt,1900);
   logLine('🙂','you '+a.prompt+' at the '+a.label.toLowerCase());
   if(a.sit){const p=actXY(a);boss.x=p.x;boss.y=p.y;boss.pose='sit';boss.sitting=true;  // hop onto the seat
     clearTimeout(bossActT);bossActT=setTimeout(()=>{boss.sitting=false;},4500);}
+  if(a.key==='game')pongTil=performance.now()+6000;   // rally the ball for a few seconds
 }
 
 // ================= RENDER LOOP =================
@@ -636,6 +665,8 @@ function renderMD(src){
     return '<div class="md">'+DOMPurify.sanitize(marked.parse(String(src??'')))+'</div>';
   return '<div class="md">'+esc(src).replace(/\n/g,'<br>')+'</div>';
 }
+// syntax-highlight a <code> block (highlight.js, vendored)
+function hl(el){try{if(window.hljs&&!el.dataset.hl){hljs.highlightElement(el);el.dataset.hl='1';}}catch(e){}}
 
 async function loadState(){
   if(!companyName)return;
@@ -814,6 +845,7 @@ function addMsgToPanel(m){
     d.dataset.raw=m.text;
     d.innerHTML='<div class="who">'+esc(m.fromName||m.from)+'</div>'+renderMD(m.text);
     d.appendChild(copyBtn(()=>d.dataset.raw||'','msgcopy'));   // copy whole message
+    d.querySelectorAll('pre code').forEach(hl);                 // syntax highlight
     d.querySelectorAll('pre').forEach(pre=>{                    // copy each code block
       pre.appendChild(copyBtn(()=>pre.querySelector('code')?pre.querySelector('code').innerText:pre.innerText,'codecopy'));
     });
@@ -1250,6 +1282,8 @@ function setChatTab(t){
 function termEntries(m){
   const out=[];
   if(m.cmd)out.push({type:'cmd',text:m.cmd});
+  if(m.tool)out.push({type:'tool',text:m.tool,arg:m.args});
+  if(m.toolResult!=null&&String(m.toolResult).trim())out.push({type:'toolres',text:String(m.toolResult).trim()});
   if(m.note)out.push({type:'note',text:m.note,level:m.level});
   if(m.output!=null&&String(m.output).trim())out.push({type:'out',text:String(m.output).trim()});
   return out;
@@ -1276,14 +1310,41 @@ function renderTerminal(){
     'run (command, model output, delegations) shows here — session only.</div>';return;}
   el.innerHTML=arr.map(e=>{
     if(e.type==='cmd')return '<div class="t-cmd"><span class="d">$</span> '+esc(e.text)+'</div>';
+    if(e.type==='tool')return '<div class="t-tool"><span class="tk">⏺</span> <b>'+esc(e.text)+'</b>'+(e.arg?'<span class="ta">('+esc(e.arg)+')</span>':'')+'</div>';
+    if(e.type==='toolres'){
+      const lines=e.text.split('\n');
+      if(lines.length<=1&&e.text.length<=88)return '<div class="t-toolres">⎿ '+esc(e.text)+'</div>';
+      return '<div class="t-toolres collapsed"><span class="tr-head">⎿ '+esc(lines[0].slice(0,84))
+        +' <span class="tr-more">'+lines.length+' lines · click / ⌃O</span></span>'
+        +'<pre class="tr-full">'+esc(e.text)+'</pre></div>';
+    }
     if(e.type==='note')return '<div class="t-note '+(e.level||'')+'">'+esc(e.text)+'</div>';
     if(e.type==='dim')return '<div class="t-dim">· '+esc(e.text)+'</div>';
     return '<div class="t-out">'+esc(e.text)+'</div>';
   }).join('');
+  // syntax-highlight fenced code inside the model's output lines
+  el.querySelectorAll('.t-out').forEach(o=>{
+    if(/```|^\s{4}|[{};]\s*$/.test(o.textContent)&&window.hljs){
+      try{const r=hljs.highlightAuto(o.textContent);if(r.relevance>6)o.innerHTML='<code class="hljs">'+r.value+'</code>';}catch(e){}
+    }
+  });
   el.scrollTop=el.scrollHeight;
 }
 const chatTabsEl=document.getElementById('chatTabs');
 if(chatTabsEl)chatTabsEl.addEventListener('click',ev=>{const b=ev.target.closest('.tab');if(b)setChatTab(b.dataset.tab);});
+// tool results collapse/expand — click a result, or ⌃O / ⌘O to toggle all
+document.getElementById('terminal').addEventListener('click',ev=>{
+  const row=ev.target.closest('.t-toolres');
+  if(row&&row.querySelector('.tr-full'))row.classList.toggle('collapsed');
+});
+addEventListener('keydown',ev=>{
+  if((ev.ctrlKey||ev.metaKey)&&(ev.key==='o'||ev.key==='O')&&!chatbox.hidden&&chatTab==='terminal'){
+    ev.preventDefault();
+    const rows=[...document.querySelectorAll('#terminal .t-toolres')].filter(r=>r.querySelector('.tr-full'));
+    const expand=rows.some(r=>r.classList.contains('collapsed'));
+    rows.forEach(r=>r.classList.toggle('collapsed',!expand));
+  }
+});
 
 // ---- transient work rail: streams tool calls / delegations, cleared on reply ----
 function railClear(){
