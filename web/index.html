@@ -40,7 +40,7 @@
     </section>
 
     <aside class="right">
-      <div class="hudbox">
+      <div class="hudbox" id="rosterBox" hidden>
         <h4>Roster — click to chat</h4>
         <div class="roster" id="roster"></div>
       </div>
@@ -66,7 +66,7 @@
       </div>
       <div class="hudbox hint" id="hint">
         <b>Move with the arrow keys</b> — walk up to an employee and press
-        <b>Enter</b> to talk, or just click them in the office or roster.<br><br>
+        <b>Enter</b> to talk, or just click them in the office.<br><br>
         Talk to the <b>CEO or CTO</b> and watch them delegate to the team — or message an
         engineer directly.<br><br>
         <b>No API key needed</b> if you're signed into Claude Code (<code>claude</code> CLI) or
@@ -97,6 +97,17 @@
       <option value="openai">OpenAI API · gpt (OPENAI_API_KEY)</option>
       <option value="ollama">Ollama · local &amp; free (llama3.2)</option>
     </select>
+    <div class="status" id="hCliStatus" hidden></div>
+    <div id="hLoginWrap" hidden>
+      <label>Sign-in method</label>
+      <div class="pills" id="hLogin">
+        <button type="button" class="pill on" data-login="machine"><span class="rd"></span><div><div class="pt">This machine</div><div class="ps">the CLI sign-in on this computer</div></div></button>
+        <button type="button" class="pill" data-login="dir"><span class="rd"></span><div><div class="pt">Separate sign-in</div><div class="ps">another member's credential dir</div></div></button>
+        <button type="button" class="pill" data-login="apikey"><span class="rd"></span><div><div class="pt">API key</div><div class="ps">env var name or paste a token</div></div></button>
+      </div>
+      <input id="hAuthDir" placeholder="path to that member's CLI config dir, e.g. ~/alt-claude" hidden style="margin-top:6px">
+      <input id="hApiKey" placeholder="token, or the name of an env var holding it" hidden style="margin-top:6px">
+    </div>
     <label>Model</label>
     <select id="hModel" title="Models available to you on the chosen engine — fetched live. Pick “custom…” to type any model id."></select>
     <input id="hModelCustom" placeholder="custom model id, e.g. claude-sonnet-4.5" hidden style="margin-top:6px">
@@ -104,11 +115,12 @@
     <input id="hRepos" placeholder="~/Desktop/Personal Work/agapps/hisaab"
       title="On the Claude Code engine, these become the ONLY directories this employee can access. Leave empty for a chat-only employee with no file access.">
     <label>File permissions</label>
-    <select id="hPerms" title="What they may do inside their charter repos (Claude Code engine)">
-      <option value="read">Read only — browse &amp; report</option>
-      <option value="read,write">Read + write — edit files</option>
-      <option value="read,write,run">Read + write + run commands</option>
-    </select>
+    <div class="checks" id="hPerms">
+      <button type="button" class="chk on" data-perm="read"><span class="box"></span><span class="ct">Read<span class="cs">browse &amp; report</span></span></button>
+      <button type="button" class="chk" data-perm="write"><span class="box"></span><span class="ct">Write<span class="cs">edit files</span></span></button>
+      <button type="button" class="chk" data-perm="run"><span class="box"></span><span class="ct">Run<span class="cs">shell commands</span></span></button>
+    </div>
+    <div class="mininote">Read is implied by Write and Run.</div>
     <div class="row">
       <button class="btn" id="hCancel">Cancel</button>
       <button class="btn primary" id="hSubmit"
@@ -133,9 +145,26 @@
       <option value="openai">OpenAI-compatible API (OPENAI_API_KEY / baseURL)</option>
       <option value="ollama">Ollama · local &amp; free</option>
     </select>
+    <div class="status" id="sCliStatus" hidden></div>
+    <div id="sLoginWrap" hidden>
+      <label>Sign-in method</label>
+      <div class="pills" id="sLogin">
+        <button type="button" class="pill on" data-login="machine"><span class="rd"></span><div><div class="pt">This machine</div><div class="ps">the CLI sign-in on this computer</div></div></button>
+        <button type="button" class="pill" data-login="dir"><span class="rd"></span><div><div class="pt">Separate sign-in</div><div class="ps">another member's credential dir</div></div></button>
+        <button type="button" class="pill" data-login="apikey"><span class="rd"></span><div><div class="pt">API key</div><div class="ps">env var name or paste a token</div></div></button>
+      </div>
+      <input id="sAuthDir" placeholder="path to that member's CLI config dir, e.g. ~/alt-claude" hidden style="margin-top:6px">
+      <input id="sApiKey" placeholder="token, or the name of an env var holding it" hidden style="margin-top:6px">
+    </div>
     <label>Model</label>
     <select id="sModel" title="Models available on the chosen engine. Pick “custom…” to type any model id."></select>
     <input id="sModelCustom" placeholder="custom model id, e.g. claude-sonnet-4.5" hidden style="margin-top:6px">
+
+    <div class="divide"></div>
+    <label id="sMcpLabel">MCP servers</label>
+    <div class="mcp" id="sMcp"></div>
+    <div class="mininote" id="sMcpNote">Passed to CLI engines via a generated <code>--mcp-config</code>. Scoped to this employee.</div>
+
     <div class="row">
       <button class="btn" id="sCancel">Cancel</button>
       <button class="btn primary" id="sSave" title="Save — takes effect on their next message">Save settings</button>
@@ -152,11 +181,12 @@
     <input id="chRepos" placeholder="~/Desktop/Personal Work/agapps/hisaab"
       title="These become the ONLY directories this employee can access on the Claude Code engine">
     <label>File permissions</label>
-    <select id="chPerms">
-      <option value="read">Read only — browse &amp; report</option>
-      <option value="read,write">Read + write — edit files</option>
-      <option value="read,write,run">Read + write + run commands</option>
-    </select>
+    <div class="checks" id="chPerms">
+      <button type="button" class="chk on" data-perm="read"><span class="box"></span><span class="ct">Read<span class="cs">browse &amp; report</span></span></button>
+      <button type="button" class="chk" data-perm="write"><span class="box"></span><span class="ct">Write<span class="cs">edit files</span></span></button>
+      <button type="button" class="chk" data-perm="run"><span class="box"></span><span class="ct">Run<span class="cs">shell commands</span></span></button>
+    </div>
+    <div class="mininote">Read is implied by Write and Run.</div>
     <div class="row">
       <button class="btn" id="chCancel">Cancel</button>
       <button class="btn primary" id="chSave" title="Save — takes effect on their next message">Save charter</button>

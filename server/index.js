@@ -7,6 +7,7 @@ import {
   listCompanies, loadCompany, saveCompany, readMessages, ensureDemoCompany,
 } from './store.js';
 import { makeOrchestrator } from './orchestrator.js';
+import { detectCLI } from './providers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEB = path.join(__dirname, '..', 'web');
@@ -39,18 +40,40 @@ export function startServer(port = 4310) {
       if (url.pathname === '/api/companies' && req.method === 'GET')
         return send(200, listCompanies());
 
+      // is a CLI engine installed / signed in? (drives the install prompt in the UI)
+      if (url.pathname === '/api/cli' && req.method === 'GET') {
+        const tool = url.searchParams.get('tool') || 'claude';
+        return send(200, await detectCLI(tool));
+      }
+
       // list models the user can actually use for a given engine
       if (url.pathname === '/api/models' && req.method === 'GET') {
         const type = url.searchParams.get('type') || '';
         try {
           if (type === 'cli-claude')
-            // subscription aliases understood by `claude -p --model`
+            // aliases + current full ids understood by `claude -p --model`
             return send(200, { models: [
               { id: 'default', label: 'default (Claude Code setting)' },
-              { id: 'sonnet' }, { id: 'opus' }, { id: 'haiku' },
+              { id: 'opus', label: 'opus (latest Opus)' },
+              { id: 'sonnet', label: 'sonnet (latest Sonnet)' },
+              { id: 'haiku', label: 'haiku (latest Haiku)' },
+              { id: 'claude-opus-4-8', label: 'claude-opus-4-8' },
+              { id: 'claude-sonnet-5', label: 'claude-sonnet-5' },
+              { id: 'claude-sonnet-4-5', label: 'claude-sonnet-4-5' },
+              { id: 'claude-haiku-4-5', label: 'claude-haiku-4-5' },
             ] });
           if (type === 'cli-copilot')
-            return send(200, { models: [{ id: 'default', label: 'default (Copilot setting)' }] });
+            // models selectable in the GitHub Copilot CLI (billed to your Copilot plan)
+            return send(200, { models: [
+              { id: 'default', label: 'default (Copilot setting)' },
+              { id: 'claude-sonnet-4.5', label: 'claude-sonnet-4.5' },
+              { id: 'claude-sonnet-4', label: 'claude-sonnet-4' },
+              { id: 'gpt-5', label: 'gpt-5' },
+              { id: 'gpt-5-mini', label: 'gpt-5-mini' },
+              { id: 'o3', label: 'o3' },
+              { id: 'o4-mini', label: 'o4-mini' },
+              { id: 'gemini-2.5-pro', label: 'gemini-2.5-pro' },
+            ] });
           if (type === 'anthropic') {
             const key = process.env.ANTHROPIC_API_KEY;
             if (!key) return send(200, { models: [], error: 'set ANTHROPIC_API_KEY to list models' });

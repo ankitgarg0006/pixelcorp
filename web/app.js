@@ -9,13 +9,13 @@ const PAL={
   floorLine:'#D8BE92',
   oakTop:'#B07848', oakFront:'#93603A',
   deskTop:'#EFE8DA', deskFront:'#D9CFBB',
-  rugSage:'#C2CFA8', rugSageB:'#A8B88C',
-  rugTerra:'#E0B49A', rugTerraB:'#C9987C',
-  rugLav:'#C9BFE8', rugLavB:'#B0A4D8',
-  rugBlue:'#B4C6D9', rugBlueB:'#9AB0C6',
+  rugSage:'#A6DE93', rugSageB:'#79C267',
+  rugTerra:'#F4B184', rugTerraB:'#E28C5C',
+  rugLav:'#CDB8F2', rugLavB:'#AC8FE6',
+  rugBlue:'#96C8EE', rugBlueB:'#67A6DE',
   sky:'#AEDCF2', skyHi:'#D6EFFA',
-  green1:'#4C8C50', green2:'#63A75E', green3:'#8CC176',
-  accent:'#E8804C', white:'#F8F5EE', steel:'#3E3852',
+  green1:'#3F9A54', green2:'#5CB863', green3:'#8FD37C',
+  accent:'#F2854A', white:'#F8F5EE', steel:'#3E3852',
 };
 const SKINS=[{S:'#F4CCA6',s:'#DBA97F'},{S:'#E0B183',s:'#C29061'},{S:'#C08A5C',s:'#A06F43'}];
 const HAIRS=[['#362F44','#2B2536'],['#6B4A2F','#573B24'],['#A84E32','#8C3F27'],['#A8A4B0','#8E8A9A'],['#3A2E5C','#2E2447']];
@@ -62,16 +62,21 @@ const catSpr=spriteCanvas(CAT,{O:PAL.outline,F:'#E8964C',f:'#C97B3C'});
 // ================= WORLD =================
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 const stage=document.getElementById('stage');
-const W=512,H=288;
+// The room GROWS TALLER as you hire: two desk rows fit in the base 288px canvas;
+// each extra row of desks adds ROWDY px of height and pushes the lower zones down.
+const W=512, H0=288, ROWDY=60, YSPLIT=150;
+let H=H0, EXT=0;
 function R(c,x,y,w,h,col){c.fillStyle=col;c.fillRect(x,y,w,h);}
 function outlined(c,x,y,w,h,fill){R(c,x-1,y-1,w+2,h+2,PAL.outline);R(c,x,y,w,h,fill);}
 
-// ---- static background ----
+// ---- static background (rebuilt whenever the room grows) ----
 const bg=document.createElement('canvas');bg.width=W;bg.height=H;
-(function build(){
-  const b=bg.getContext('2d');
+function buildBg(){
+  bg.height=H;
+  const b=bg.getContext('2d');b.clearRect(0,0,W,H);
+  const E=EXT;                                  // lower-zone / height shift
   const tints=['#E5CDA4','#E1C79C','#E9D2AC','#E3CAA0'];
-  for(let y=26;y<288;y+=10){
+  for(let y=26;y<H;y+=10){
     for(let x=-16;x<W;x+=32){
       const off=((y/10)%2)*16;
       R(b,x+off,y,32,10,tints[Math.abs(((x+off)*7+y*13)>>3)%4]);
@@ -79,16 +84,16 @@ const bg=document.createElement('canvas');bg.width=W;bg.height=H;
     R(b,0,y,W,1,PAL.floorLine);
     for(let x=((y/10)%2)*16;x<W;x+=32)R(b,x,y+1,1,9,PAL.floorLine);
   }
-  for(let i=0;i<26;i++){const kx=(i*97)%W,ky=30+((i*61)%250);R(b,kx,ky,2,1,'#C9AE82');}
+  for(let i=0;i<26;i++){const kx=(i*97)%W,ky=30+((i*61)%(H-38));R(b,kx,ky,2,1,'#C9AE82');}
   R(b,0,0,W,26,PAL.wallFace);
   for(let x=24;x<W;x+=24)R(b,x,2,1,18,'rgba(51,40,59,.05)');
   R(b,0,0,W,2,'#D8CEBC');R(b,0,20,W,6,PAL.wallBase);R(b,0,25,W,1,PAL.outline);
   R(b,0,26,W,3,'rgba(51,40,59,.10)');
   R(b,0,0,5,H,'#D8CEBC');R(b,5,26,1,H-26,'rgba(51,40,59,.25)');
   R(b,507,0,5,H,'#CBC0AC');R(b,506,26,1,H-26,'rgba(51,40,59,.25)');
-  R(b,0,280,W,8,PAL.wallDark);R(b,0,279,W,1,PAL.outline);
-  R(b,232,278,48,10,tints[0]);
-  outlined(b,236,277,40,9,'#C46A4A');R(b,238,279,36,5,'#D2795A');
+  R(b,0,H-8,W,8,PAL.wallDark);R(b,0,H-9,W,1,PAL.outline);
+  R(b,232,H-10,48,10,tints[0]);
+  outlined(b,236,H-11,40,9,'#C46A4A');R(b,238,H-9,36,5,'#D2795A');
   [20,92,166,240,314,388,458].forEach(wx=>{
     R(b,wx-4,1,34,2,'#8C5A3C');
     outlined(b,wx,3,26,18,PAL.white);
@@ -118,17 +123,19 @@ const bg=document.createElement('canvas');bg.width=W;bg.height=H;
     if(pattern==='inner'){R(b,x+7,y+7,w-14,1,border);R(b,x+7,y+h-8,w-14,1,border);
       R(b,x+7,y+7,1,h-14,border);R(b,x+w-8,y+7,1,h-14,border);}
   }
-  rug(18,58,96,66,PAL.rugLavB,PAL.rugLav,'inner');
-  rug(148,50,246,110,PAL.rugSageB,PAL.rugSage,'diamond');
-  rug(404,52,96,96,PAL.rugTerraB,PAL.rugTerra,'stripe');
-  rug(16,168,104,76,PAL.rugBlueB,PAL.rugBlue,'inner');
-  rug(300,186,180,66,'#8B84C8','#9A93D2','diamond');
-})();
+  rug(18,58,96,66,PAL.rugLavB,PAL.rugLav,'inner');            // CEO cabin (fixed)
+  rug(148,50,246,110+E,PAL.rugSageB,PAL.rugSage,'diamond');   // product zone — grows
+  rug(404,52,96,96,PAL.rugTerraB,PAL.rugTerra,'stripe');      // lounge (fixed)
+  rug(16,168+E,104,76,PAL.rugBlueB,PAL.rugBlue,'inner');      // meeting — pushed down
+  rug(300,186+E,180,66,'#8E82D8','#A79BEA','diamond');        // game — pushed down
+}
+buildBg();
 
-// ---- lighting overlay ----
+// ---- lighting overlay (rebuilt whenever the room grows) ----
 const lightC=document.createElement('canvas');lightC.width=W;lightC.height=H;
-(function(){
-  const L=lightC.getContext('2d');
+function buildLight(){
+  lightC.height=H;
+  const L=lightC.getContext('2d');L.clearRect(0,0,W,H);
   L.fillStyle='rgba(255,196,120,.05)';L.fillRect(0,0,W,H);
   [20,92,166,240,314,388,458].forEach(wx=>{
     const g=L.createRadialGradient(wx+13,24,4,wx+13,24,52);
@@ -148,22 +155,33 @@ const lightC=document.createElement('canvas');lightC.width=W;lightC.height=H;
     vg.addColorStop(0,edge);vg.addColorStop(1,none);
     L.fillStyle=vg;L.fillRect(rx,ry,rw,rh);
   });
-})();
+}
+buildLight();
 
 // ---- scenery + seats ----
 const CABIN_SEAT={x:58,y:82,desk:{x:30,y:76},chair:'#5A3A22'};
-const POD_SEATS=[
-  {x:184,y:72,desk:{x:158,y:66}},{x:260,y:72,desk:{x:234,y:66}},{x:336,y:72,desk:{x:310,y:66}},
-  {x:184,y:132,desk:{x:158,y:126}},{x:260,y:132,desk:{x:234,y:126}},{x:336,y:132,desk:{x:310,y:126}},
-];
-const STAND_SPOTS=[{x:322,y:244},{x:392,y:244},{x:436,y:170},{x:150,y:200}];
+// Desk pod is generated: 3 columns, rows added as the team grows (min 2 rows).
+const COLX=[184,260,336];
+function genSeats(n){
+  const rows=Math.max(2,Math.ceil(n/3));
+  const seats=[];
+  for(let i=0;i<rows*3;i++){
+    const col=i%3,row=(i/3|0),y=72+row*ROWDY;
+    seats.push({x:COLX[col],y,desk:{x:COLX[col]-26,y:y-6}});
+  }
+  return seats;
+}
+let POD_SEATS=genSeats(6);
 const DESK_PROPS=['dual','tower','plant','books','mug','plant'];
+const deskProp=i=>DESK_PROPS[i%DESK_PROPS.length];
 
 let employees=[];   // live state: {id,name,role,busy,frames,x,y,pose,seat}
 let piecesDyn=[];
 const boss={id:'boss',name:'You',x:254,y:270,pose:'stand',frames:framesFor('boss-you','Founder',{head:'short'})};
 
 function piece(arr,base,draw){arr.push({base,draw});}
+// lower-band pieces (meeting/kitchen/game) get pushed down by EXT as the room grows
+function lowPiece(arr,base,draw){arr.push({base:base+EXT,draw:(c,t)=>{c.save();c.translate(0,EXT);draw(c,t);c.restore();}});}
 function shadow(c,x,y,w){R(c,x+1,y,w-2,3,'rgba(51,40,59,.16)');}
 function block(c,x,y,w,d,h,top,front){
   R(c,x-1,y-1,w+2,d+h+2,PAL.outline);
@@ -229,23 +247,23 @@ function staticScenery(arr){
   piece(arr,132,c=>{R(c,411,120,16,13,PAL.outline);R(c,412,121,14,11,'#5AA0E0');R(c,414,122,10,4,'#74B4EC');});
   piece(arr,136,c=>{R(c,473,123,16,13,PAL.outline);R(c,474,124,14,11,'#E87CB0');R(c,476,125,10,4,'#F094C2');});
   piece(arr,148,c=>plantPiece(c,488,132,1));
-  // meeting nook
-  piece(arr,180,c=>{
+  // meeting nook (lower band — shifts with EXT)
+  lowPiece(arr,180,c=>{
     R(c,20,152,36,26,PAL.outline);R(c,21,153,34,21,PAL.white);
     R(c,24,156,14,1,'#C4553E');R(c,24,159,22,1,'#3E5077');R(c,24,162,12,1,'#63A75E');
     R(c,24,166,16,1,'#D9A441');
     R(c,33,174,2,7,'#8A8A96');R(c,41,174,2,7,'#8A8A96');
   });
-  [[36,184],[80,184],[36,232],[80,232]].forEach(([mx,my])=>piece(arr,my+8,c=>{
+  [[36,184],[80,184],[36,232],[80,232]].forEach(([mx,my])=>lowPiece(arr,my+8,c=>{
     R(c,mx-1,my-1,12,10,PAL.outline);R(c,mx,my,10,8,'#8C6E4A');}));
-  piece(arr,224,c=>{
+  lowPiece(arr,224,c=>{
     shadow(c,32,224,68);
     block(c,32,202,68,14,8,PAL.oakTop,PAL.oakFront);
     outlined(c,44,205,10,7,PAL.white);R(c,46,207,6,1,'#B9B9C4');R(c,46,209,4,1,'#B9B9C4');
     outlined(c,76,206,8,6,'#3E3852');R(c,77,207,6,4,'#8FD8EF');
   });
-  // kitchenette
-  piece(arr,240,(c,t)=>{
+  // kitchenette (lower band)
+  lowPiece(arr,240,(c,t)=>{
     shadow(c,152,240,100);
     block(c,152,214,100,12,14,PAL.deskTop,'#C98A56');
     for(let i=156;i<244;i+=18)R(c,i,232,12,8,'#B87C4E');
@@ -258,20 +276,20 @@ function staticScenery(arr){
     outlined(c,196,216,14,6,'#B8BEC8');R(c,198,217,10,4,'#7A828E');
     outlined(c,222,210,8,6,'#D6D6DE');
   });
-  piece(arr,241,c=>{
+  lowPiece(arr,241,c=>{
     shadow(c,258,241,20);
     R(c,257,208,22,34,PAL.outline);
     R(c,258,209,20,32,'#E4E2E6');R(c,258,209,20,10,'#D2D0D8');
     R(c,274,212,2,5,'#8A909C');R(c,274,223,2,8,'#8A909C');
   });
-  piece(arr,196,c=>{
+  lowPiece(arr,196,c=>{
     shadow(c,285,196,12);
     R(c,284,173,14,24,PAL.outline);R(c,285,174,12,22,'#E4E2E6');
     R(c,287,168,8,8,'#8FD8EF');R(c,288,169,6,3,'#C8ECFA');
     R(c,287,184,3,3,'#6FA8C9');
   });
   // game corner — the ball rests until an actual match is on (ambient-life roadmap)
-  piece(arr,234,(c,t)=>{
+  lowPiece(arr,234,(c,t)=>{
     shadow(c,330,234,52);
     block(c,330,206,52,18,8,'#4CA05C','#3C8449');
     R(c,330,214,52,1,'rgba(255,255,255,.5)');
@@ -280,8 +298,8 @@ function staticScenery(arr){
     R(c,344,208,2,2,PAL.white);   // resting ball + paddles
     R(c,336,210,5,3,'#C4553E');R(c,372,210,5,3,'#3E5077');
   });
-  piece(arr,214,c=>{R(c,447,202,16,13,PAL.outline);R(c,448,203,14,11,'#9A6CD8');R(c,450,204,10,4,'#AC82E4');});
-  piece(arr,250,c=>plantPiece(c,468,232,1));
+  lowPiece(arr,214,c=>{R(c,447,202,16,13,PAL.outline);R(c,448,203,14,11,'#9A6CD8');R(c,450,204,10,4,'#AC82E4');});
+  lowPiece(arr,250,c=>plantPiece(c,468,232,1));
   piece(arr,140,c=>plantPiece(c,138,122,0));
 }
 function deskPieces(arr,seat,emp,prop){
@@ -319,23 +337,36 @@ function deskPieces(arr,seat,emp,prop){
 }
 
 function assignSeats(){
-  piecesDyn=[];staticScenery(piecesDyn);
   const ceo=employees.find(e=>/ceo|chief|founder/i.test(e.role));
-  let podIdx=0,standIdx=0;
+  const nonCeo=employees.filter(e=>e!==ceo).length;
+  relayout(nonCeo);                        // grow the room to fit everyone
+  piecesDyn=[];staticScenery(piecesDyn);
+  let podIdx=0;
   employees.forEach(e=>{
-    if(e===ceo){e.x=CABIN_SEAT.x;e.y=CABIN_SEAT.y;e.pose='sit';e.seat='cabin';return;}
-    if(podIdx<POD_SEATS.length){
-      const s=POD_SEATS[podIdx];
-      e.x=s.x;e.y=s.y;e.pose='sit';e.seat=podIdx;podIdx++;
-    }else{
-      const s=STAND_SPOTS[standIdx%STAND_SPOTS.length];standIdx++;
-      e.x=s.x;e.y=s.y;e.pose='stand';e.seat=null;
+    // record the employee's HOME (desk) — live x/y roam away from it when idle
+    if(e===ceo){e.homeX=CABIN_SEAT.x;e.homeY=CABIN_SEAT.y;e.homePose='sit';e.seat='cabin';}
+    else{
+      const s=POD_SEATS[podIdx];e.homeX=s.x;e.homeY=s.y;e.homePose='sit';e.seat=podIdx;podIdx++;
     }
+    if(e.x==null){e.x=e.homeX;e.y=e.homeY;e.pose=e.homePose;}
   });
   POD_SEATS.forEach((s,i)=>{
     const emp=employees.find(e=>e.seat===i);
-    deskPieces(piecesDyn,s,emp||null,DESK_PROPS[i]);
+    deskPieces(piecesDyn,s,emp||null,deskProp(i));
   });
+}
+// Grow / shrink the room to fit the (non-CEO) headcount, rebuilding the scaled
+// background, collision map, wander/activity spots and zone labels as needed.
+function relayout(nonCeo){
+  POD_SEATS=genSeats(nonCeo);
+  const rows=Math.max(2,Math.ceil(Math.max(1,nonCeo)/3));
+  const newEXT=(rows-2)*ROWDY;
+  if(newEXT===EXT)return;
+  EXT=newEXT;H=H0+EXT;
+  cv.height=H;
+  buildBg();buildLight();
+  rebuildSolids();
+  znEls.forEach(z=>{z.y=z.by+(z.low?EXT:0);});
 }
 
 // ================= OVERLAYS =================
@@ -346,9 +377,9 @@ function makeEl(cls,html,click){
   if(click)e.addEventListener('click',click);
   stage.appendChild(e);return e;
 }
-[['CEO cabin',64,48],['Product team',270,42],['Lounge',452,46],
- ['Meeting',66,146],['Kitchen',202,192],['Game corner',406,182]]
- .forEach(([txt,x,y])=>znEls.push({el:makeEl('zn',txt),x,y}));
+[['CEO cabin',64,48,0],['Product team',270,42,0],['Lounge',452,46,0],
+ ['Meeting',66,146,1],['Kitchen',202,192,1],['Game corner',406,182,1]]
+ .forEach(([txt,x,y,low])=>znEls.push({el:makeEl('zn',txt),x,y,by:y,low}));
 const bossTag=makeEl('tag you','You');
 bossTag.title='This is you — move with the arrow keys, press Enter near an employee to talk';
 const bossBubble=makeEl('bubble','');
@@ -384,6 +415,9 @@ function placeOverlays(){
     const e=employees.find(x=>x.id===nearId);
     if(e){talkPrompt.hidden=false;talkPrompt.textContent='⏎ talk to '+e.name;
       put(talkPrompt,boss.x,boss.y+14);}
+  }else if(nearProp){
+    talkPrompt.hidden=false;talkPrompt.textContent='⏎ '+nearProp.prompt;
+    put(talkPrompt,boss.x,boss.y+14);
   }else talkPrompt.hidden=true;
   put(catBubble,cat.x,cat.y-10);
   znEls.forEach(o=>put(o.el,o.x,o.y));
@@ -400,17 +434,23 @@ function say(id,text,ms){
 
 // ================= BOSS MOVEMENT (arrow keys) =================
 // Walk your avatar around the office; get close to an employee and press Enter to talk.
-const SOLIDS=[
+const SOLIDS_BASE=[
   [20,28,34,32],[29,63,62,45],[94,86,18,20],            // cabin: shelf, desk, plant
   [126,26,10,58],[126,114,10,32],                        // glass partition (door gap stays open)
   [412,28,32,30],[408,58,64,28],[424,94,32,17],          // lounge: shelf, sofa, table
   [410,118,20,15],[472,121,20,15],[476,72,12,30],[484,114,18,20],
-  [18,150,40,28],[28,180,76,64],                         // whiteboard, meeting set
-  [150,212,104,30],[255,206,26,38],[282,170,18,28],      // kitchen counter, fridge, cooler
-  [328,204,56,34],[445,200,20,15],[464,214,18,20],       // ping-pong, beanbag, plant
+  [18,150,40,28],[28,180,76,64],                         // whiteboard, meeting set (lower)
+  [150,212,104,30],[255,206,26,38],[282,170,18,28],      // kitchen counter, fridge, cooler (lower)
+  [328,204,56,34],[445,200,20,15],[464,214,18,20],       // ping-pong, beanbag, plant (lower)
   [134,104,18,20],
 ];
-POD_SEATS.forEach(s=>SOLIDS.push([s.desk.x-2,s.desk.y-12,60,46]));
+// Collision map rebuilt on relayout: lower-band rects shift by EXT, plus one per desk.
+let SOLIDS=[];
+function rebuildSolids(){
+  SOLIDS=SOLIDS_BASE.map(([x,y,w,h])=>y>=YSPLIT?[x,y+EXT,w,h]:[x,y,w,h]);
+  POD_SEATS.forEach(s=>SOLIDS.push([s.desk.x-2,s.desk.y-12,60,46]));
+}
+rebuildSolids();
 const keys={};
 let nearId=null;
 function modalOpen(){return !!document.querySelector('.modal.on');}
@@ -421,12 +461,15 @@ addEventListener('keydown',e=>{
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
     keys[e.key]=true;e.preventDefault();
   }
-  if(e.key==='Enter'&&nearId){selectEmployee(nearId);e.preventDefault();}
+  if(e.key==='Enter'){
+    if(nearId){selectEmployee(nearId);e.preventDefault();}
+    else if(nearProp){bossActivity(nearProp);e.preventDefault();}
+  }
 });
 addEventListener('keyup',e=>{delete keys[e.key];});
 addEventListener('blur',()=>{for(const k in keys)delete keys[k];});
 function bossBlocked(x,y){
-  if(x<14||x>498||y<34||y>274)return true;
+  if(x<14||x>498||y<34||y>H-14)return true;
   const bx=x-6,by=y-13,bw=12,bh=13;
   return SOLIDS.some(([rx,ry,rw,rh])=>bx<rx+rw&&bx+bw>rx&&by<ry+rh&&by+bh>ry);
 }
@@ -435,19 +478,91 @@ function moveBoss(dt){
   const dy=(keys.ArrowDown?1:0)-(keys.ArrowUp?1:0);
   const moving=!!(dx||dy);
   if(moving){
+    boss.sitting=false;
     const sp=72*dt;
     const nx=boss.x+dx*sp, ny=boss.y+dy*sp;
     if(!bossBlocked(nx,boss.y))boss.x=nx;
     if(!bossBlocked(boss.x,ny))boss.y=ny;
   }
-  boss.pose=moving?'walk':'stand';
+  boss.pose=moving?'walk':(boss.sitting?'sit':'stand');
   // proximity: nearest employee within reach (generous enough to work across a desk)
   let best=null,bd=48;
   employees.forEach(e=>{
+    if(e.x==null)return;
     const d=Math.hypot(e.x-boss.x,e.y-boss.y);
     if(d<bd){bd=d;best=e.id;}
   });
   nearId=best;
+  // else, nearest interactive prop
+  let bestP=null,bpd=32;
+  if(!nearId)ACTIVITIES.forEach(a=>{
+    const p=actXY(a),d=Math.hypot(p.x-boss.x,p.y-boss.y);
+    if(d<bpd){bpd=d;bestP=a;}
+  });
+  nearProp=bestP;
+}
+
+// ================= AMBIENT LIFE — roaming + activities =================
+// Idle (non-busy) employees wander the floor and use the props; busy ones head
+// back to their desk and work. Walkable spots are hand-picked to stay clear of
+// furniture. Props are also interactive for YOU (walk up, press Enter).
+const WANDER=[
+  {x:118,y:172},{x:206,y:158},{x:264,y:166},{x:300,y:158},{x:392,y:158},
+  {x:240,y:255},{x:300,y:256},{x:120,y:256},{x:404,y:250},{x:150,y:150},
+];
+const ACTIVITIES=[
+  {key:'water', x:306,y:212, emoji:'💧', prompt:'drink water',       label:'Water cooler', low:true},
+  {key:'coffee',x:170,y:205, emoji:'☕', prompt:'grab a coffee',      label:'Coffee', low:true},
+  {key:'game',  x:356,y:250, emoji:'🏓', prompt:'play ping-pong',     label:'Game corner', low:true},
+  {key:'read',  x:430,y:70,  emoji:'📖', prompt:'read a book',        label:'Bookshelf'},
+  {key:'couch', x:439,y:73,  emoji:'😌', prompt:'sit on the couch',   label:'Lounge couch', sit:true},
+];
+// props/wander points in the lower band move down with the room
+const actXY=a=>({x:a.x,y:a.low?a.y+EXT:a.y});
+function walkTo(e,tx,ty,sp,dt){
+  const dx=tx-e.x,dy=ty-e.y,d=Math.hypot(dx,dy);
+  if(d<1.5){return true;}
+  const step=Math.min(sp*dt,d);
+  e.x+=dx/d*step;e.y+=dy/d*step;e.pose='walk';return false;
+}
+function pickTarget(e){
+  if(Math.random()<0.45){
+    const a=ACTIVITIES[(Math.random()*ACTIVITIES.length)|0];
+    e.target=actXY(a);e.act=a.key;e.actEmoji=a.emoji;e.actSit=!!a.sit;
+  }else{
+    const w=WANDER[(Math.random()*WANDER.length)|0];
+    e.target={x:w.x,y:w.y+EXT};e.act=null;e.actSit=false;
+  }
+}
+function stepEmployees(dt,t){
+  employees.forEach(e=>{
+    if(e.x==null)return;
+    if(e.busy){                                   // working → go home, sit, focus
+      e.act=null;e.target=null;e.dwell=0;e.sitting=false;
+      if(walkTo(e,e.homeX,e.homeY,66,dt))e.pose=e.homePose||'sit';
+      return;
+    }
+    if(e.dwell>0){                                // dwelling at a spot / activity
+      e.dwell-=dt;e.pose=e.sitting?'sit':'stand';
+      if(e.act&&Math.random()<dt*0.6)say(e.id,e.actEmoji,1400);
+      if(e.dwell<=0){e.target=null;e.act=null;e.sitting=false;}
+      return;
+    }
+    if(!e.target)pickTarget(e);
+    if(walkTo(e,e.target.x,e.target.y,40,dt)){    // arrived
+      e.dwell=3+Math.random()*5;
+      if(e.act){e.sitting=e.actSit;say(e.id,e.actEmoji,1600);}
+      else e.pose='stand';
+    }
+  });
+}
+// You can use the props too: walk up, press Enter.
+let nearProp=null,bossActT=null;
+function bossActivity(a){
+  say('boss',a.emoji+' '+a.prompt,1900);
+  logLine('🙂','you '+a.prompt+' at the '+a.label.toLowerCase());
+  if(a.sit){const p=actXY(a);boss.x=p.x;boss.y=p.y;boss.pose='sit';boss.sitting=true;  // hop onto the seat
+    clearTimeout(bossActT);bossActT=setTimeout(()=>{boss.sitting=false;},4500);}
 }
 
 // ================= RENDER LOOP =================
@@ -466,6 +581,7 @@ let last=performance.now();
 function frame(t){
   const dt=Math.min(0.05,(t-last)/1000);last=t;
   moveBoss(dt);
+  stepEmployees(dt,t);
   const cdx=cat.tx-cat.x,cdy=cat.ty-cat.y,cd=Math.hypot(cdx,cdy);
   if(cd>0.5){cat.x+=cdx/cd*10*dt;cat.y+=cdy/cd*10*dt;}
   ctx.clearRect(0,0,W,H);
@@ -522,11 +638,17 @@ async function loadState(){
   sel.innerHTML=names.map(n=>'<option'+(n===companyName?' selected':'')+'>'+esc(n)+'</option>').join('');
   const data=await (await fetch('/api/company/'+encodeURIComponent(companyName))).json();
   const prev=Object.fromEntries(employees.map(e=>[e.id,e]));
-  employees=data.employees.map(e=>({
-    ...e,
-    frames:prev[e.id]?.frames||framesFor(e.id,e.role),
-    busy:e.busy,
-  }));
+  employees=data.employees.map(e=>{
+    const p=prev[e.id];
+    return {
+      ...e,
+      frames:p?.frames||framesFor(e.id,e.role),
+      busy:e.busy,
+      // carry live roaming state so a state refresh doesn't teleport anyone home
+      x:p?.x,y:p?.y,pose:p?.pose,target:p?.target,dwell:p?.dwell,
+      act:p?.act,actEmoji:p?.actEmoji,actSit:p?.actSit,sitting:p?.sitting,
+    };
+  });
   assignSeats();syncOverlays();renderRoster();fillManagerSelect();
   if(!employees.length)
     logLine('system','empty office — hit 🎉 Hire to bring in your first employee (a CEO makes a good start)');
@@ -586,6 +708,7 @@ document.getElementById('cSubmit').addEventListener('click',async ()=>{
   enterCompany(nm);
   logLine('🏢','founded "'+nm+'" — time to hire your first employee');
   hireModal.classList.add('on');loadModels('hProvider','hModel','hModelCustom');
+  setPerms('hPerms',['read']);setLogin('h',null);refreshCli('h');
 });
 function renderRoster(){
   roster.innerHTML='';
@@ -679,6 +802,9 @@ document.getElementById('settingsBtn').addEventListener('click',()=>{
       +esc(x.name)+' · '+esc(x.role)+'</option>').join('');
   document.getElementById('sProvider').value=engineOf(e.provider);
   loadModels('sProvider','sModel','sModelCustom',(e.provider&&e.provider.model)||'');
+  setLogin('s',e.provider);
+  sMcpServers=(e.provider&&Array.isArray(e.provider.mcpServers))?e.provider.mcpServers.map(x=>({...x})):[];
+  renderMcp();refreshCli('s');
   settingsModal.classList.add('on');
 });
 document.getElementById('sCancel').addEventListener('click',()=>settingsModal.classList.remove('on'));
@@ -693,7 +819,7 @@ document.getElementById('sSave').addEventListener('click',async ()=>{
       role:document.getElementById('sRole').value.trim(),
       persona:document.getElementById('sPersona').value.trim(),
       managerId:document.getElementById('sManager').value||null,
-      provider:buildProvider(eng,modelValue('sModel','sModelCustom'),e.provider)}),
+      provider:applyLoginMcp('s',eng,buildProvider(eng,modelValue('sModel','sModelCustom'),e.provider))}),
   });
   settingsModal.classList.remove('on');
   logLine('⚙','settings updated — takes effect on their next message');
@@ -709,16 +835,14 @@ document.getElementById('charterBtn').addEventListener('click',()=>{
   document.getElementById('charterWho').textContent=e.name+' · '+e.role+
     ' — on the Claude Code engine these repos are the only paths they can touch.';
   document.getElementById('chRepos').value=(e.charter?.repos||[]).join(', ');
-  const perms=(e.charter?.permissions||['read']).join(',');
-  document.getElementById('chPerms').value=
-    ['read','read,write','read,write,run'].includes(perms)?perms:'read';
+  setPerms('chPerms',e.charter?.permissions||['read']);
   charterModal.classList.add('on');
 });
 document.getElementById('chCancel').addEventListener('click',()=>charterModal.classList.remove('on'));
 charterModal.addEventListener('click',e=>{if(e.target===charterModal)charterModal.classList.remove('on');});
 document.getElementById('chSave').addEventListener('click',async ()=>{
   const repos=document.getElementById('chRepos').value.split(',').map(s=>s.trim()).filter(Boolean);
-  const permissions=document.getElementById('chPerms').value.split(',');
+  const permissions=getPerms('chPerms');
   await fetch('/api/company/'+encodeURIComponent(companyName)+'/charter',{
     method:'POST',headers:{'content-type':'application/json'},
     body:JSON.stringify({id:selected,repos,permissions}),
@@ -781,12 +905,155 @@ function wireModelUI(pvId,mdlId,customId){
 }
 wireModelUI('hProvider','hModel','hModelCustom');
 wireModelUI('sProvider','sModel','sModelCustom');
+
+// ---- permission checkboxes (Read is the floor; implied by Write/Run) ----
+function wirePerms(id){
+  const box=document.getElementById(id);
+  box.querySelectorAll('.chk').forEach(c=>c.addEventListener('click',()=>{
+    if(c.dataset.perm==='read')return;      // read is always granted
+    c.classList.toggle('on');syncPerms(id);
+  }));
+  syncPerms(id);
+}
+function syncPerms(id){
+  const box=document.getElementById(id);
+  const read=box.querySelector('[data-perm="read"]');
+  read.classList.add('on');                 // always on
+  read.classList.toggle('dis',true);        // shown as locked-on
+}
+function getPerms(id){
+  const box=document.getElementById(id),out=['read'];
+  if(box.querySelector('[data-perm="write"]').classList.contains('on'))out.push('write');
+  if(box.querySelector('[data-perm="run"]').classList.contains('on'))out.push('run');
+  return out;
+}
+function setPerms(id,arr){
+  const box=document.getElementById(id),a=arr&&arr.length?arr:['read'];
+  box.querySelector('[data-perm="write"]').classList.toggle('on',a.includes('write'));
+  box.querySelector('[data-perm="run"]').classList.toggle('on',a.includes('run'));
+  syncPerms(id);
+}
+wirePerms('hPerms');wirePerms('chPerms');
+
+// ---- login method (machine sign-in / separate credential dir / API key) ----
+function wireLogin(prefix){
+  const wrap=document.getElementById(prefix+'Login');
+  wrap.querySelectorAll('.pill').forEach(p=>p.addEventListener('click',()=>{
+    wrap.querySelectorAll('.pill').forEach(x=>x.classList.remove('on'));
+    p.classList.add('on');syncLogin(prefix);
+  }));
+}
+function loginMethod(prefix){
+  const on=document.getElementById(prefix+'Login').querySelector('.pill.on');
+  return on?on.dataset.login:'machine';
+}
+function syncLogin(prefix){
+  const m=loginMethod(prefix);
+  document.getElementById(prefix+'AuthDir').hidden=m!=='dir';
+  document.getElementById(prefix+'ApiKey').hidden=m!=='apikey';
+}
+function setLogin(prefix,provider){
+  const m=(provider&&provider.login)||'machine';
+  document.getElementById(prefix+'Login').querySelectorAll('.pill')
+    .forEach(x=>x.classList.toggle('on',x.dataset.login===m));
+  document.getElementById(prefix+'AuthDir').value=(provider&&provider.authDir)||'';
+  document.getElementById(prefix+'ApiKey').value=(provider&&(provider.apiKey||provider.apiKeyEnv))||'';
+  syncLogin(prefix);
+}
+wireLogin('h');wireLogin('s');
+
+// ---- CLI install / sign-in status card ----
+const CLI_TOOL={'claude-cli':'claude','copilot-cli':'copilot'};
+async function refreshCli(prefix){
+  const eng=document.getElementById(prefix+'Provider').value;
+  const el=document.getElementById(prefix+'CliStatus');
+  const loginWrap=document.getElementById(prefix+'LoginWrap');
+  const tool=CLI_TOOL[eng];
+  loginWrap.hidden=!tool;                     // login method only applies to CLI engines
+  if(!tool){el.hidden=true;return;}
+  el.hidden=false;el.className='status load';el.textContent='checking '+tool+' CLI…';
+  try{renderCli(prefix,el,await (await fetch('/api/cli?tool='+tool)).json());}
+  catch{el.className='status warn';el.textContent='could not check the CLI';}
+}
+function renderCli(prefix,el,d){
+  if(!d.installed){
+    el.className='status bad';
+    el.innerHTML='<span class="ic">⚠</span><div><b>'+esc(d.tool)+' CLI not found</b> on this machine. Install it, then sign in once:'
+      +'<div class="cmd"><code>'+esc(d.installCmd)+'</code><button type="button" class="btn sm" data-copy="'+esc(d.installCmd)+'">Copy</button></div>'
+      +'<div class="mininote">Then run <code>'+esc(d.signinCmd)+'</code> in a terminal to sign in. '
+      +'<button type="button" class="btn sm" data-recheck="'+prefix+'">Re-check</button></div></div>';
+  }else if(d.signedIn===false){
+    el.className='status warn';
+    el.innerHTML='<span class="ic">◐</span><div><b>'+esc(d.tool)+' CLI installed</b> ('+esc(d.version)+') — sign in once with <code>'+esc(d.signinCmd)+'</code>. <button type="button" class="btn sm" data-recheck="'+prefix+'">Re-check</button></div>';
+  }else{
+    el.className='status ok';
+    el.innerHTML='<span class="ic">✓</span><div><b>'+esc(d.tool)+' CLI ready</b> — '+esc(d.version)+(d.signedIn?' · signed in':'')+'. No API key needed.</div>';
+  }
+}
+document.getElementById('hProvider').addEventListener('change',()=>refreshCli('h'));
+document.getElementById('sProvider').addEventListener('change',()=>{refreshCli('s');renderMcp();});
+// delegated: copy install cmd / re-check buttons inside status cards
+document.addEventListener('click',ev=>{
+  const cp=ev.target.closest('[data-copy]');
+  if(cp){navigator.clipboard&&navigator.clipboard.writeText(cp.dataset.copy);cp.textContent='Copied ✓';setTimeout(()=>cp.textContent='Copy',1500);return;}
+  const rc=ev.target.closest('[data-recheck]');
+  if(rc){refreshCli(rc.dataset.recheck);}
+});
+
+// ---- MCP servers (settings modal; CLI engines) ----
+let sMcpServers=[];
+function mcpDesc(s){return s.url||[s.command].concat(s.args||[]).join(' ');}
+function renderMcp(){
+  const eng=document.getElementById('sProvider').value;
+  const isCli=eng==='claude-cli'||eng==='copilot-cli';
+  document.getElementById('sMcpLabel').style.opacity=isCli?'':'.5';
+  document.getElementById('sMcpNote').textContent=isCli
+    ?'Passed to CLI engines via a generated --mcp-config. Scoped to this employee.'
+    :'MCP is available on the Claude Code / Copilot CLI engines for now.';
+  const box=document.getElementById('sMcp');box.innerHTML='';
+  if(!sMcpServers.length)box.innerHTML='<div class="mcp-empty">None attached.</div>';
+  sMcpServers.forEach((s,i)=>{
+    const row=document.createElement('div');row.className='mcprow';
+    row.innerHTML='<span class="nm">'+esc(s.name)+'</span><span class="cm">'+esc(mcpDesc(s))+'</span>';
+    const x=document.createElement('button');x.className='x';x.type='button';x.textContent='✕';x.title='Remove';
+    x.addEventListener('click',()=>{sMcpServers.splice(i,1);renderMcp();});
+    row.appendChild(x);box.appendChild(row);
+  });
+  const add=document.createElement('button');add.type='button';add.className='mcpadd';
+  add.textContent='＋ Add MCP server';add.disabled=!isCli;add.addEventListener('click',addMcp);
+  box.appendChild(add);
+}
+function addMcp(){
+  const name=prompt('MCP server name (e.g. github, playwright):');if(!name||!name.trim())return;
+  const cmd=prompt('Command to launch it, e.g.\n  npx -y @modelcontextprotocol/server-github\n\n…or paste an http(s) URL for a remote MCP server:');
+  if(!cmd||!cmd.trim())return;
+  const v=cmd.trim();
+  if(/^https?:\/\//i.test(v))sMcpServers.push({name:name.trim(),url:v});
+  else{const parts=v.split(/\s+/);sMcpServers.push({name:name.trim(),command:parts[0],args:parts.slice(1)});}
+  renderMcp();
+}
+// fold login + MCP into a provider object for CLI engines
+function applyLoginMcp(prefix,eng,provider){
+  const isCli=eng==='claude-cli'||eng==='copilot-cli';
+  if(isCli){
+    const m=loginMethod(prefix);provider.login=m;delete provider.authDir;delete provider.apiKey;delete provider.apiKeyEnv;
+    if(m==='dir'){const v=document.getElementById(prefix+'AuthDir').value.trim();if(v)provider.authDir=v;else provider.login='machine';}
+    if(m==='apikey'){const v=document.getElementById(prefix+'ApiKey').value.trim();
+      if(v){if(/^[A-Z][A-Z0-9_]+$/.test(v))provider.apiKeyEnv=v;else provider.apiKey=v;}else provider.login='machine';}
+    if(prefix==='s'){if(sMcpServers.length)provider.mcpServers=sMcpServers.slice();else delete provider.mcpServers;}
+  }else{delete provider.login;delete provider.authDir;delete provider.apiKey;delete provider.apiKeyEnv;delete provider.mcpServers;}
+  return provider;
+}
 function fillManagerSelect(){
   const sel=document.getElementById('hManager');
   sel.innerHTML='<option value="">(no manager)</option>'+
     employees.map(e=>'<option value="'+esc(e.id)+'">'+esc(e.name)+' · '+esc(e.role)+'</option>').join('');
 }
-document.getElementById('hireBtn').addEventListener('click',()=>{hireModal.classList.add('on');loadModels('hProvider','hModel','hModelCustom');});
+document.getElementById('hireBtn').addEventListener('click',()=>{
+  hireModal.classList.add('on');
+  loadModels('hProvider','hModel','hModelCustom');
+  setPerms('hPerms',['read']);setLogin('h',null);refreshCli('h');
+});
 document.getElementById('hCancel').addEventListener('click',()=>hireModal.classList.remove('on'));
 hireModal.addEventListener('click',e=>{if(e.target===hireModal)hireModal.classList.remove('on');});
 document.getElementById('hSubmit').addEventListener('click',async ()=>{
@@ -795,13 +1062,9 @@ document.getElementById('hSubmit').addEventListener('click',async ()=>{
   if(!name||!role)return;
   const pv=document.getElementById('hProvider').value;
   const mdl=modelValue('hModel','hModelCustom');
-  const provider=pv==='claude-cli'?{type:'cli',tool:'claude',...(mdl?{model:mdl}:{})}
-    :pv==='copilot-cli'?{type:'cli',tool:'copilot'}
-    :pv==='anthropic'?{type:'anthropic',model:mdl||'claude-sonnet-5'}
-    :pv==='openai'?{type:'openai',model:mdl||'gpt-4o-mini'}
-    :{type:'openai',baseURL:'http://localhost:11434/v1',model:mdl||'llama3.2'};
+  const provider=applyLoginMcp('h',pv,buildProvider(pv,mdl,null));
   const repos=document.getElementById('hRepos').value.split(',').map(s=>s.trim()).filter(Boolean);
-  const permissions=document.getElementById('hPerms').value.split(',');
+  const permissions=getPerms('hPerms');
   await fetch('/api/company/'+encodeURIComponent(companyName)+'/hire',{
     method:'POST',headers:{'content-type':'application/json'},
     body:JSON.stringify({name,role,
