@@ -669,6 +669,7 @@ async function showLauncher(){
       info=await r.json();
       if(!r.ok||!Array.isArray(info.employees))throw new Error(info.error||r.status);
     }catch{continue;} // corrupted/unreadable company — skip so the rest of the launcher still works
+    const wrap=document.createElement('div');wrap.className='card-wrap';
     const card=document.createElement('button');
     card.className='card';
     card.title='Open the '+n+' office';
@@ -676,7 +677,11 @@ async function showLauncher(){
       '<div class="meta">'+info.employees.length+' employee'+(info.employees.length===1?'':'s')+'</div>'+
       '<span class="enter">Enter office →</span>';
     card.addEventListener('click',()=>enterCompany(n));
-    cards.appendChild(card);
+    const del=document.createElement('button');del.type='button';del.className='card-del';
+    del.title='Delete this company permanently';del.textContent='🗑';
+    del.addEventListener('click',ev=>{ev.stopPropagation();confirmDelete(del,n);});
+    wrap.appendChild(card);wrap.appendChild(del);
+    cards.appendChild(wrap);
   }
   const nc=document.createElement('button');
   nc.className='card newco';
@@ -684,6 +689,18 @@ async function showLauncher(){
   nc.innerHTML='<span class="plus">＋</span><span>FOUND A NEW COMPANY</span>';
   nc.addEventListener('click',()=>{companyModal.classList.add('on');document.getElementById('cName').focus();});
   cards.appendChild(nc);
+}
+// Two-click confirm (no blocking dialog), then permanently delete the company.
+function confirmDelete(btn,name){
+  if(btn.dataset.arm!=='1'){
+    btn.dataset.arm='1';btn.textContent='Delete?';btn.classList.add('arm');
+    clearTimeout(btn._t);btn._t=setTimeout(()=>{btn.dataset.arm='';btn.textContent='🗑';btn.classList.remove('arm');},3500);
+    return;
+  }
+  clearTimeout(btn._t);btn.textContent='…';btn.disabled=true;
+  fetch('/api/company/'+encodeURIComponent(name)+'/delete',{method:'POST'})
+    .then(r=>r.json()).then(()=>showLauncher())
+    .catch(()=>{btn.disabled=false;btn.textContent='🗑';btn.dataset.arm='';btn.classList.remove('arm');});
 }
 function enterCompany(n){
   companyName=n;selected=null;

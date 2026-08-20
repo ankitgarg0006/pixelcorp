@@ -43,6 +43,14 @@ export function saveCompany(company) {
   fs.writeFileSync(path.join(dir, 'company.json'), JSON.stringify(company, null, 2));
 }
 
+// Permanently delete a company: its roster, transcript and folder are removed.
+export function deleteCompany(name) {
+  const dir = companyDir(name);
+  if (!fs.existsSync(dir)) return false;
+  fs.rmSync(dir, { recursive: true, force: true });
+  return true;
+}
+
 export function appendMessage(companyName, msg) {
   const dir = companyDir(companyName);
   fs.mkdirSync(dir, { recursive: true });

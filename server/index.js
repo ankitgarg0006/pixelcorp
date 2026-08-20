@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import {
-  listCompanies, loadCompany, saveCompany, readMessages, ensureDemoCompany,
+  listCompanies, loadCompany, saveCompany, readMessages, ensureDemoCompany, deleteCompany,
 } from './store.js';
 import { makeOrchestrator } from './orchestrator.js';
 import { detectCLI, listCliMcp } from './providers.js';
@@ -127,6 +127,13 @@ export function startServer(port = 4310) {
             ...company,
             employees: company.employees.map(e => ({ ...e, busy: o.isBusy(e.id) })),
           });
+        }
+        // Permanently delete a company (roster + transcript + folder).
+        if (sub === '/delete' && req.method === 'POST') {
+          orchestrators.delete(name);            // drop its live orchestrator
+          const ok = deleteCompany(name);
+          broadcast({ type: 'company-deleted', company: name });
+          return send(200, { ok });
         }
         if (sub === '/history' && req.method === 'GET')
           return send(200, readMessages(name, {
